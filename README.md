@@ -39,7 +39,7 @@ honest figure is between them.
 ## Install
 
 ```bash
-git clone https://github.com/khair/khair-arabic-models
+git clone https://github.com/mohammadkhair7/khair-arabic-models
 cd khair-arabic-models
 git lfs install && git lfs pull        # weights + datasets are LFS objects
 pip install -e .
@@ -263,6 +263,17 @@ Read these before trusting a number.
 
 ---
 
+## Credits
+
+Developed by **Mohammad Mohammad Khair, MS, EMBA**
+**[International Computing Institute for Quran and Islamic Sciences](https://QuranComputing.org)**
+
+المهندس محمد محمد خير — المعهد العالمي لحوسبة القرآن والعلوم الإسلامية
+
+This work was produced as part of the **[Hadith.chat](https://Hadith.chat)**
+project and is released to the public as free and open-source software under
+the Apache License 2.0.
+
 ## Citation
 
 ```bibtex
@@ -273,7 +284,7 @@ Read these before trusting a number.
   author = {Khair, Mohammad Mohammad},
   year   = {2026},
   institution = {International Computing Institute for Quran and Islamic Sciences},
-  url    = {https://github.com/khair/khair-arabic-models/blob/main/docs/PAPER.md}
+  url    = {https://github.com/mohammadkhair7/khair-arabic-models/blob/main/docs/PAPER.md}
 }
 ```
 

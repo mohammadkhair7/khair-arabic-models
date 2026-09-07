@@ -26,4 +26,7 @@ outputs/
 .DS_Store
 Thumbs.db
 
-webapp/
+# Webapp runtime artifacts (the app itself IS tracked)
+webapp/.venv/
+webapp/uploads/
+webapp/tmp/

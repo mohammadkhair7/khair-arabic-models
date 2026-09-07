@@ -1,10 +1,14 @@
 arabicmodels
-Copyright 2026 Mohammad Mohammad Khair
+Copyright 2026 Mohammad Mohammad Khair, MS, EMBA
 International Computing Institute for Quran and Islamic Sciences
-(qurancomputing.org)
+https://QuranComputing.org
 
-This product includes software, model weights and datasets developed for the
-AdvancedHadith project and released under the Apache License, Version 2.0.
+المهندس محمد محمد خير
+المعهد العالمي لحوسبة القرآن والعلوم الإسلامية
+
+This product includes software, model weights and datasets developed as part
+of the Hadith.chat project (https://Hadith.chat) and released to the public as
+free and open-source software under the Apache License, Version 2.0.
 
 --------------------------------------------------------------------------
 NOTE ON THE TRAINING DATA

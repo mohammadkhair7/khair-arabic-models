@@ -5,7 +5,11 @@ type: software
 authors:
   - family-names: Khair
     given-names: Mohammad Mohammad
-repository-code: "https://github.com/khair/khair-arabic-models"
+    name-suffix: MS, EMBA
+    affiliation: International Computing Institute for Quran and Islamic Sciences
+    website: "https://QuranComputing.org"
+repository-code: "https://github.com/mohammadkhair7/khair-arabic-models"
+url: "https://Hadith.chat"
 license: Apache-2.0
 version: 0.1.0
 date-released: "2026-09-07"

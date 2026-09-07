@@ -5,6 +5,12 @@
 Everything you need to **run**, **retrain** and **adapt** the four models, with
 working examples. No prior machine-learning experience is assumed.
 
+> Developed by **Mohammad Mohammad Khair, MS, EMBA** —
+> **[International Computing Institute for Quran and Islamic Sciences](https://QuranComputing.org)**
+> (المهندس محمد محمد خير — المعهد العالمي لحوسبة القرآن والعلوم الإسلامية),
+> as part of the **[Hadith.chat](https://Hadith.chat)** project. Released as
+> free and open-source software under the Apache License 2.0.
+
 | Section | Read it if you want to… |
 |---|---|
 | [1. Setup](#1-setup) | install and check that everything works |
@@ -21,7 +27,7 @@ working examples. No prior machine-learning experience is assumed.
 ## 1. Setup
 
 ```bash
-git clone https://github.com/khair/khair-arabic-models
+git clone https://github.com/mohammadkhair7/khair-arabic-models
 cd khair-arabic-models
 git lfs install && git lfs pull      # downloads the weights and datasets
 pip install -e .

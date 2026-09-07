@@ -44,9 +44,9 @@ dev = ["pytest>=7.0"]
 arabicmodels = "arabicmodels.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/khair/khair-arabic-models"
-Repository = "https://github.com/khair/khair-arabic-models"
-Paper = "https://github.com/khair/khair-arabic-models/blob/main/docs/PAPER.md"
+Homepage = "https://github.com/mohammadkhair7/khair-arabic-models"
+Repository = "https://github.com/mohammadkhair7/khair-arabic-models"
+Paper = "https://github.com/mohammadkhair7/khair-arabic-models/blob/main/docs/PAPER.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

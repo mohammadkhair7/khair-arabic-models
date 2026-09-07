@@ -5,6 +5,11 @@
 كل ما تحتاجه **لتشغيل** النماذج الأربعة و**إعادة تدريبها** و**تكييفها** على
 نصوصك، مع أمثلة عملية. لا يفترض هذا الدليل خبرة سابقة في تعلّم الآلة.
 
+> إعداد **المهندس محمد محمد خير** (Mohammad Mohammad Khair, MS, EMBA) —
+> **[المعهد العالمي لحوسبة القرآن والعلوم الإسلامية](https://QuranComputing.org)**،
+> ضمن مشروع **[Hadith.chat](https://Hadith.chat)**. وقد أُتيح هذا العمل للعموم
+> برمجياتٍ حرة مفتوحة المصدر بموجب رخصة أباتشي ٢٫٠.
+
 | القسم | اقرأه إذا أردت أن… |
 |---|---|
 | [1. التثبيت](#1-التثبيت) | تُثبّت الحزمة وتتأكد أن كل شيء يعمل |
@@ -21,7 +26,7 @@
 ## 1. التثبيت
 
 ```bash
-git clone https://github.com/khair/khair-arabic-models
+git clone https://github.com/mohammadkhair7/khair-arabic-models
 cd khair-arabic-models
 git lfs install && git lfs pull      # يُنزّل أوزان النماذج والبيانات
 pip install -e .
