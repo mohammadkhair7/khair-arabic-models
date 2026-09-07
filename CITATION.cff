@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: "arabicmodels: compact neural models for classical Arabic"
+message: "If you use these models, datasets or code, please cite the paper below."
+type: software
+authors:
+  - family-names: Khair
+    given-names: Mohammad Mohammad
+repository-code: "https://github.com/khair/khair-arabic-models"
+license: MIT
+version: 0.1.0
+date-released: "2026-09-07"
+keywords:
+  - arabic
+  - diacritization
+  - part-of-speech tagging
+  - sequence labeling
+  - weak supervision
+  - knowledge distillation
+  - classical arabic
+preferred-citation:
+  type: report
+  title: >-
+    The Corpus is the Labeler: Compact Neural Models for Structure
+    Segmentation, POS Tagging, and Diacritization of Classical Hadith Text
+  authors:
+    - family-names: Khair
+      given-names: Mohammad Mohammad
+  year: 2026
+  institution:
+    name: International Computing Institute for Quran and Islamic Sciences

@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arabicmodels"
+version = "0.1.0"
+description = "Compact neural models for Arabic diacritization, POS tagging and text-structure segmentation, trained without manual annotation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Mohammad Mohammad Khair" },
+]
+keywords = [
+    "arabic", "nlp", "diacritization", "tashkeel", "part-of-speech",
+    "sequence-labeling", "classical-arabic", "hadith", "bilstm",
+    "weak-supervision", "knowledge-distillation",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Arabic",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+dependencies = [
+    "torch>=2.4",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+# Only needed to REGENERATE the POS dataset from raw text (the silver teacher).
+# Training and inference of the shipped models do not require it.
+teacher = ["camel-tools>=1.5"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+arabicmodels = "arabicmodels.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/khair/khair-arabic-models"
+Repository = "https://github.com/khair/khair-arabic-models"
+Paper = "https://github.com/khair/khair-arabic-models/blob/main/docs/PAPER.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["arabicmodels*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

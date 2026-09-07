@@ -1,0 +1,37 @@
+MIT License
+
+Copyright (c) 2026 Mohammad Mohammad Khair
+International Computing Institute for Quran and Islamic Sciences
+(qurancomputing.org)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), and the
+model weights and datasets distributed alongside it, to deal in the Software
+without restriction, including without limitation the rights to use, copy,
+modify, merge, publish, distribute, sublicense, and/or sell copies of the
+Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+NOTE ON THE TRAINING DATA
+
+The datasets under `data/` are derived from digitized editions of classical
+Arabic hadith collections. The underlying works are centuries old and in the
+public domain. The particular digitizations and modern critical editions from
+which the text was harvested may carry editorial rights in some
+jurisdictions; the excerpts here are short, non-contiguous windows retained
+for research and reproducibility. See `docs/DATA.md` for provenance details.
+If you intend to redistribute the datasets commercially, review the position
+of the source editions in your own jurisdiction.
