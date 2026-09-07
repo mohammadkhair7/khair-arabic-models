@@ -1,0 +1,10 @@
+#!/bin/sh
+# Block commits that carry a credential.
+#
+# Enable once per clone:
+#     git config core.hooksPath .githooks
+#
+# Bypass is possible with `git commit --no-verify`, which is deliberate: a
+# hook is a safety net for accidents, not a control against someone who has
+# decided to commit a key on purpose. CI runs the same check with --all.
+python scripts/check_secrets.py || exit 1

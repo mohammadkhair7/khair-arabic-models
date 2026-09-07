@@ -30,3 +30,25 @@ Thumbs.db
 webapp/.venv/
 webapp/uploads/
 webapp/tmp/
+
+# --------------------------------------------------------------------------
+# Secrets. Nothing in this block may ever be committed.
+#
+# Stripe and SendGrid credentials are read from the process environment only.
+# The single tracked file describing them is `webapp/.env.example`, which
+# contains variable *names* and empty values - and it is force-allowed below
+# precisely because the `.env*` glob above it is deliberately greedy.
+# --------------------------------------------------------------------------
+.env
+.env.*
+*.env
+!webapp/.env.example
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+*_secret*
+*_credentials*

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khair Arabic Models — free Arabic text processing</title>
+<meta name="description" content="Free diacritization, part-of-speech tagging and hadith structure analysis for Arabic text.">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+
+<header class="site">
+  <h1>Khair Arabic Models</h1>
+  <p class="site-ar" dir="rtl" lang="ar">نماذج خَيْر لمعالجة اللغة العربية</p>
+  <p class="tagline">
+    Free Arabic diacritization, part-of-speech tagging and hadith structure
+    analysis. Paste text or upload a file — nothing you send is written to disk.
+  </p>
+</header>
+
+<main>
+
+  <section class="card">
+    <h2><span class="step">1</span> Choose what to do
+      <span class="ar" dir="rtl" lang="ar">اختر العملية</span></h2>
+    <div id="tasks" class="tasks">
+      <p class="muted">Loading…</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">2</span> Give it some text
+      <span class="ar" dir="rtl" lang="ar">أدخل النص</span></h2>
+
+    <div class="tabs" role="tablist">
+      <button type="button" id="tab-paste" class="tab is-active" role="tab"
+              aria-selected="true" aria-controls="pane-paste">
+        Paste text <span class="ar" dir="rtl" lang="ar">لصق نص</span>
+      </button>
+      <button type="button" id="tab-file" class="tab" role="tab"
+              aria-selected="false" aria-controls="pane-file">
+        Upload a file <span class="ar" dir="rtl" lang="ar">رفع ملف</span>
+      </button>
+    </div>
+
+    <div id="pane-paste" class="pane" role="tabpanel">
+      <label class="visually-hidden" for="text">Arabic text</label>
+      <textarea id="text" dir="rtl" lang="ar" rows="7" spellcheck="false"
+                placeholder="حدثنا قتيبة بن سعيد قال حدثنا الليث عن نافع عن ابن عمر"></textarea>
+      <p class="hint" id="text-hint"></p>
+    </div>
+
+    <div id="pane-file" class="pane is-hidden" role="tabpanel">
+      <label class="drop" id="drop" for="file">
+        <input type="file" id="file" class="visually-hidden">
+        <strong id="drop-label">Drag a file here, or click to choose one</strong>
+        <span class="hint" id="file-hint"></span>
+      </label>
+      <div class="field is-hidden" id="column-row">
+        <label for="column">Which column holds the Arabic text?</label>
+        <input type="text" id="column" autocomplete="off"
+               placeholder="leave blank to detect it automatically">
+        <span class="hint">A column name, or a number like <code>3</code>.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card run-card">
+    <button type="button" id="run" class="run">
+      Run <span class="ar" dir="rtl" lang="ar">شغّل</span>
+    </button>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card is-hidden" id="results">
+    <h2><span class="step">3</span> Result
+      <span class="ar" dir="rtl" lang="ar">النتيجة</span></h2>
+
+    <dl class="meta" id="meta"></dl>
+    <ul class="notes is-hidden" id="notes"></ul>
+
+    <div class="toolbar">
+      <div class="downloads">
+        <span class="toolbar-label">Download as</span>
+        <span id="download-buttons"></span>
+      </div>
+      <div class="toggles">
+        <label class="check"><input type="checkbox" id="show-source">
+          Show the original alongside</label>
+        <button type="button" class="ghost" id="copy">Copy text</button>
+      </div>
+    </div>
+
+    <div class="output" id="output" dir="rtl" lang="ar"></div>
+    <p class="hint" id="preview-note"></p>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <p>
+    Developed by <strong>Mohammad Mohammad Khair, MS, EMBA</strong> —
+    <a href="https://QuranComputing.org" rel="noopener noreferrer" target="_blank">International
+    Computing Institute for Quran and Islamic Sciences</a>,
+    as part of the <a href="https://Hadith.chat" rel="noopener noreferrer" target="_blank">Hadith.chat</a>
+    project.
+  </p>
+  <p dir="rtl" lang="ar">
+    إعداد المهندس محمد محمد خير — المعهد العالمي لحوسبة القرآن والعلوم الإسلامية،
+    ضمن مشروع Hadith.chat.
+  </p>
+  <p class="muted">
+    Open source under the Apache License 2.0 —
+    <a href="https://github.com/mohammadkhair7/khair-arabic-models"
+       rel="noopener noreferrer" target="_blank">github.com/mohammadkhair7/khair-arabic-models</a>
+  </p>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
