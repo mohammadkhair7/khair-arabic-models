@@ -36,8 +36,9 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from .common import (DATA_DIR, MODELS_DIR, PAD, Vocab, device, load_ckpt,
-                     pad_batch, read_jsonl, save_ckpt, seed_all)
+from .common import (DATA_DIR, MODELS_DIR, PAD, Vocab, add_train_io_args,
+                     device, init_or_build, load_ckpt, pad_batch, read_jsonl,
+                     save_ckpt, seed_all)
 
 CKPT = MODELS_DIR / "tashkeel_bilstm.pt"
 DATA = DATA_DIR / "tashkeel.jsonl"
@@ -227,27 +228,46 @@ def _evaluate(model, data, vocab, dev, tvocab: Vocab | None = None) -> dict:
 
 
 def train(args) -> None:
-    seed_all()
+    seed_all(args.seed)
     dev = device()
     pos = getattr(args, "pos", False)
-    rows = read_jsonl(DATA_POS if pos else DATA, limit=args.limit)
+    data_path = Path(args.data) if args.data else (DATA_POS if pos else DATA)
+    out_path = Path(args.out) if args.out else (CKPT_POS if pos else CKPT)
+    rows = read_jsonl(data_path, limit=args.limit)
     data = {s: [] for s in ("train", "dev", "test")}
     for r in rows:
         data[r["split"]].append(r)
     tr, dv = _prepare(data["train"]), _prepare(data["dev"])
-    vocab = Vocab.build((row[0] for row in tr), max_size=400)
-    tvocab = Vocab.build((row[2] for row in tr), max_size=100) if pos else None
-    if pos:
-        model = TashkeelPosNet(len(vocab), len(tvocab)).to(dev)
-    else:
-        model = TashkeelNet(len(vocab)).to(dev)
+    if not tr:
+        raise SystemExit(f"no usable training rows in {data_path} — see docs/DATA.md")
+    if pos and len(tr[0]) < 3:
+        raise SystemExit(f"--pos needs rows with a 'tags' field; {data_path} has "
+                         "none. Run `arabicmodels tashkeel tag-data` first.")
+
+    def build():
+        v = Vocab.build((row[0] for row in tr), max_size=400)
+        if pos:
+            tv = Vocab.build((row[2] for row in tr), max_size=100)
+            return TashkeelPosNet(len(v), len(tv)), v, tv
+        return TashkeelNet(len(v)), v, None
+
+    def load(ck):
+        v = Vocab(ck["vocab"])
+        tv = Vocab(ck["tag_vocab"]) if pos else None
+        m = TashkeelPosNet(len(v), len(tv)) if pos else TashkeelNet(len(v))
+        m.load_state_dict(ck["state_dict"])
+        return m, v, tv
+
+    model, vocab, tvocab = init_or_build(args, build, load)
+    model.to(dev)
     n_params = sum(p.numel() for p in model.parameters())
-    print(f"device={dev} pos={pos} train={len(tr)} dev={len(dv)} "
-          f"vocab={len(vocab)} params={n_params:,}")
+    print(f"device={dev} pos={pos} data={data_path.name} train={len(tr)} "
+          f"dev={len(dv)} vocab={len(vocab)} params={n_params:,}")
+    print(f"checkpoint -> {out_path}")
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     lossf = nn.CrossEntropyLoss(ignore_index=-100)
-    ckpt = CKPT_POS if pos else CKPT
+    ckpt = out_path
     best = 1e9
     for ep in range(1, args.epochs + 1):
         model.train()
@@ -334,11 +354,13 @@ def tag_data(args) -> None:
     """Silver-tag every diacritization window with the POS student and write
     the merged {text, tags, split} training file for the v0.2 model."""
     dev = device()
-    tagger = PosFeatureTagger(dev)
-    rows = read_jsonl(DATA, limit=args.limit)
+    tagger = PosFeatureTagger(dev, args.pos_ckpt)
+    src = Path(args.data) if args.data else DATA
+    dst = Path(args.out) if args.out else DATA_POS
+    rows = read_jsonl(src, limit=args.limit)
     t0 = time.time()
-    DATA_POS.parent.mkdir(parents=True, exist_ok=True)
-    with open(DATA_POS, "w", encoding="utf-8") as f:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with open(dst, "w", encoding="utf-8") as f:
         for i in range(0, len(rows), 256):
             chunk = rows[i:i + 256]
             sents = [_MARK.sub("", r["text"]).split() for r in chunk]
@@ -349,16 +371,17 @@ def tag_data(args) -> None:
             if (i // 256) % 20 == 0:
                 print(f"  tagged {min(i+256, len(rows))}/{len(rows)} "
                       f"({time.time()-t0:.0f}s)", flush=True)
-    print(f"wrote {DATA_POS} ({len(rows)} windows) in {time.time()-t0:.0f}s")
+    print(f"wrote {dst} ({len(rows)} windows) in {time.time()-t0:.0f}s")
 
 
 def evaluate(args) -> None:
     dev = device()
     pos = getattr(args, "pos", False)
-    rows = [r for r in read_jsonl(DATA_POS if pos else DATA, limit=args.limit)
+    data_path = Path(args.data) if args.data else (DATA_POS if pos else DATA)
+    rows = [r for r in read_jsonl(data_path, limit=args.limit)
             if r["split"] == "test"]
     data = _prepare(rows)
-    model, vocab, tvocab, _ = load_model(pos)
+    model, vocab, tvocab, _ = load_model(pos, args.ckpt)
     model.to(dev)
     m = _evaluate(model, data, vocab, dev, tvocab=tvocab)
     print(f"test windows={len(data)} chars={m['chars']} pos={pos}")
@@ -370,10 +393,10 @@ def evaluate(args) -> None:
 def infer(args) -> None:
     text = args.text or Path(args.file).read_text(encoding="utf-8")
     pos = getattr(args, "pos", False)
-    model, vocab, tvocab, _ = load_model(pos)
+    model, vocab, tvocab, _ = load_model(pos, args.ckpt)
     dev = device()
     model.to(dev)
-    tagger = PosFeatureTagger(dev) if pos else None
+    tagger = PosFeatureTagger(dev, args.pos_ckpt) if pos else None
     out_lines = []
     for line in text.splitlines() or [text]:
         bare = _MARK.sub("", line)
@@ -465,10 +488,10 @@ def annotate_text(model, vocab, dev, text: str, tvocab=None, tagger=None,
 def annotate_cmd(args) -> None:
     """Batch gap-only diacritization over text files."""
     pos = getattr(args, "pos", False)
-    model, vocab, tvocab, _ = load_model(pos)
+    model, vocab, tvocab, _ = load_model(pos, args.ckpt)
     dev = device()
     model.to(dev)
-    tagger = PosFeatureTagger(dev) if pos else None
+    tagger = PosFeatureTagger(dev, args.pos_ckpt) if pos else None
     outputs = []
     for p in [Path(f) for f in args.files]:
         text = p.read_text(encoding="utf-8")
@@ -495,25 +518,36 @@ def build_parser(ap: argparse.ArgumentParser) -> argparse.ArgumentParser:
     tp.add_argument("--limit", type=int, default=None)
     tp.add_argument("--pos", action="store_true",
                     help="POS-conditioned v0.2 (reads data/tashkeel_pos.jsonl)")
+    add_train_io_args(tp)
     tp.set_defaults(func=train)
     ep = sub.add_parser("eval", help="diacritic error rate on the test split")
     ep.add_argument("--limit", type=int, default=None)
     ep.add_argument("--pos", action="store_true")
+    ep.add_argument("--data", metavar="JSONL")
+    ep.add_argument("--ckpt", metavar="CKPT")
     ep.set_defaults(func=evaluate)
     ip = sub.add_parser("infer", help="diacritize text (marks are recomputed)")
     ip.add_argument("--text")
     ip.add_argument("--file")
     ip.add_argument("--pos", action="store_true")
+    ip.add_argument("--ckpt", metavar="CKPT")
+    ip.add_argument("--pos-ckpt", metavar="CKPT",
+                    help="POS tagger used as the feature extractor for --pos")
     ip.set_defaults(func=infer)
     td = sub.add_parser("tag-data",
                         help="POS-tag tashkeel.jsonl -> tashkeel_pos.jsonl")
     td.add_argument("--limit", type=int, default=None)
+    td.add_argument("--data", metavar="JSONL")
+    td.add_argument("--out", metavar="JSONL")
+    td.add_argument("--pos-ckpt", metavar="CKPT")
     td.set_defaults(func=tag_data)
     an = sub.add_parser("annotate",
                         help="gap-only merge over files (keeps existing marks)")
     an.add_argument("files", nargs="+")
     an.add_argument("--out")
     an.add_argument("--pos", action="store_true")
+    an.add_argument("--ckpt", metavar="CKPT")
+    an.add_argument("--pos-ckpt", metavar="CKPT")
     an.add_argument("--no-protect-quran", action="store_true",
                     help="also diacritize inside ﴿…﴾ / {…} spans")
     an.set_defaults(func=annotate_cmd)

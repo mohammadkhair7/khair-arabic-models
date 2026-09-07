@@ -31,9 +31,10 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from .common import (DATA_DIR, MODELS_DIR, Vocab, WordTagger, device,
-                     encode_words, load_ckpt, pad_batch, pad_words,
-                     read_jsonl, save_ckpt, seed_all)
+from .common import (DATA_DIR, MODELS_DIR, Vocab, WordTagger,
+                     add_train_io_args, device, encode_words, init_or_build,
+                     load_ckpt, pad_batch, pad_words, read_jsonl, save_ckpt,
+                     seed_all)
 
 CKPT = MODELS_DIR / "indexing_wordtagger.pt"
 DATA = DATA_DIR / "indexing.jsonl"
@@ -122,19 +123,35 @@ def _evaluate(model, data, cvocab, tvocab, dev) -> dict:
 
 
 def train(args) -> None:
-    seed_all()
+    seed_all(args.seed)
     dev = device()
-    rows = read_jsonl(DATA, limit=args.limit)
+    data_path = Path(args.data) if args.data else DATA
+    out_path = Path(args.out) if args.out else CKPT
+    rows = read_jsonl(data_path, limit=args.limit)
     data = {s: [] for s in ("train", "dev", "test")}
     for r in rows:
         data[r["split"]].append(r)
     tr, dv = _prepare(data["train"]), _prepare(data["dev"])
-    cvocab = Vocab.build((list("".join(w)) for w, _ in tr), max_size=400)
-    tvocab = Vocab(dict({"<pad>": 0, "<unk>": 1},
+    if not tr:
+        raise SystemExit(f"no usable training rows in {data_path} — see docs/DATA.md")
+
+    def build():
+        cv = Vocab.build((list("".join(w)) for w, _ in tr), max_size=400)
+        tv = Vocab(dict({"<pad>": 0, "<unk>": 1},
                         **{t: i + 2 for i, t in enumerate(TAGS)}))
-    model = WordTagger(len(cvocab), len(tvocab)).to(dev)
-    print(f"device={dev} train={len(tr)} dev={len(dv)} "
+        return WordTagger(len(cv), len(tv)), cv, tv
+
+    def load(ck):
+        cv, tv = Vocab(ck["char_vocab"]), Vocab(ck["tag_vocab"])
+        m = WordTagger(len(cv), len(tv))
+        m.load_state_dict(ck["state_dict"])
+        return m, cv, tv
+
+    model, cvocab, tvocab = init_or_build(args, build, load)
+    model.to(dev)
+    print(f"device={dev} data={data_path.name} train={len(tr)} dev={len(dv)} "
           f"params={sum(p.numel() for p in model.parameters()):,}")
+    print(f"checkpoint -> {out_path}")
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     lossf = nn.CrossEntropyLoss(ignore_index=-100)
@@ -159,9 +176,10 @@ def train(args) -> None:
               flush=True)
         if m["word_accuracy"] > best:
             best = m["word_accuracy"]
-            save_ckpt(CKPT, model, {"char_vocab": cvocab.stoi, "tag_vocab": tvocab.stoi,
-                                    "metrics": m, "task": "indexing", "version": "0.2"})
-            print(f"  saved -> {CKPT}")
+            save_ckpt(out_path, model,
+                      {"char_vocab": cvocab.stoi, "tag_vocab": tvocab.stoi,
+                       "metrics": m, "task": "indexing", "version": "0.2"})
+            print(f"  saved -> {out_path}")
 
 
 def load_model(path: Path | str | None = None):
@@ -176,8 +194,10 @@ def load_model(path: Path | str | None = None):
 
 def evaluate(args) -> None:
     dev = device()
-    rows = [r for r in read_jsonl(DATA, limit=args.limit) if r["split"] == "test"]
-    model, cvocab, tvocab = load_model()
+    data_path = Path(args.data) if args.data else DATA
+    rows = [r for r in read_jsonl(data_path, limit=args.limit)
+            if r["split"] == "test"]
+    model, cvocab, tvocab = load_model(args.ckpt)
     model.to(dev)
     m = _evaluate(model, _prepare(rows), cvocab, tvocab, dev)
     print(f"test tokens={m['tokens']} boundaries={m['boundaries']}")
@@ -201,7 +221,7 @@ def tag_words(model, cvocab, tvocab, dev, words: list[str]) -> list[str]:
 @torch.no_grad()
 def infer(args) -> None:
     text = args.text or Path(args.file).read_text(encoding="utf-8")
-    model, cvocab, tvocab = load_model()
+    model, cvocab, tvocab = load_model(args.ckpt)
     dev = device()
     model.to(dev)
     out = []
@@ -260,7 +280,7 @@ def usable_spans(spans: list[list]) -> bool:
 def spans_cmd(args) -> None:
     """Batch structure annotation over text files -> JSON spans."""
     paths = [Path(p) for p in args.files]
-    model, cvocab, tvocab = load_model()
+    model, cvocab, tvocab = load_model(args.ckpt)
     dev = device()
     model.to(dev)
     results = []
@@ -284,17 +304,22 @@ def build_parser(ap: argparse.ArgumentParser) -> argparse.ArgumentParser:
     tp.add_argument("--batch-size", type=int, default=32)
     tp.add_argument("--lr", type=float, default=1e-3)
     tp.add_argument("--limit", type=int, default=None)
+    add_train_io_args(tp)
     tp.set_defaults(func=train)
     ep = sub.add_parser("eval", help="evaluate on the held-out test split")
     ep.add_argument("--limit", type=int, default=None)
+    ep.add_argument("--data", metavar="JSONL")
+    ep.add_argument("--ckpt", metavar="CKPT")
     ep.set_defaults(func=evaluate)
     ip = sub.add_parser("infer", help="label text and print bracketed spans")
     ip.add_argument("--text")
     ip.add_argument("--file")
+    ip.add_argument("--ckpt", metavar="CKPT")
     ip.set_defaults(func=infer)
     sp = sub.add_parser("spans", help="batch-annotate files -> JSON offsets")
     sp.add_argument("files", nargs="+")
     sp.add_argument("--out")
+    sp.add_argument("--ckpt", metavar="CKPT")
     sp.set_defaults(func=spans_cmd)
     return ap
 

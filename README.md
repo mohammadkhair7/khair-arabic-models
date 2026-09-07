@@ -59,14 +59,16 @@ arabicmodels info
 ```python
 from arabicmodels import Diacritizer, PosTagger, StructureTagger
 
-unit = "1248 - حدثنا محمد بن بشار قال حدثنا يحيى عن ابن عمر ان رسول الله قال من اقتنى كلبا"
+unit = ("1248 - حدثنا محمد بن بشار قال حدثنا يحيى عن عبيد الله قال حدثني نافع "
+        "عن ابن عمر ان رسول الله صلى الله عليه وسلم قال من اقتنى كلبا الا كلب "
+        "ماشية او ضاري نقص من عمله كل يوم قيراطان")
 
 # 1. Separate the chain of transmission from the report body
 for label, text in StructureTagger.load().segments(unit):
     print(f"[{label}] {text}")
-# [HNUM   ] 1248
-# [ISNAD  ] - حدثنا محمد بن بشار قال حدثنا يحيى عن ابن عمر ان
-# [MATN   ] رسول الله قال من اقتنى كلبا
+# [HNUM ] 1248
+# [ISNAD] - حدثنا محمد بن بشار قال حدثنا يحيى عن عبيد الله قال حدثني نافع عن ابن عمر ان
+# [MATN ] رسول الله صلى الله عليه وسلم قال من اقتنى كلبا الا كلب ماشية او ضاري نقص من عمله كل يوم قيراطان
 
 # 2. Restore the diacritics
 Diacritizer.load().diacritize("قال رسول الله صلى الله عليه وسلم")
@@ -74,7 +76,7 @@ Diacritizer.load().diacritize("قال رسول الله صلى الله عليه
 
 # 3. Tag parts of speech
 PosTagger.load().tag("حدثنا قتيبة بن سعيد")
-# [('حدثنا', 'verb'), ('قتيبة', 'noun_prop'), ('بن', 'noun'), ('سعيد', 'noun_prop')]
+# [('حدثنا', 'verb'), ('قتيبة', 'adj'), ('بن', 'noun'), ('سعيد', 'noun_prop')]
 ```
 
 ### Conservative merging
@@ -192,13 +194,31 @@ arabicmodels tashkeel  tag-data                  # tags the windows for B2
 arabicmodels tashkeel  train --pos --epochs 3    # ~7 min   (B2)
 ```
 
-To build datasets from **your own** corpus rather than reusing ours:
+Without `--out`, training **overwrites the shipped checkpoint**. Pass
+`--out mymodels/x.pt` unless you mean to replace it.
+
+### Adapting a model to your own texts
+
+Fine-tuning is almost always the better option: it needs a fraction of the data
+and keeps what the model already knows about Arabic.
+
+```bash
+arabicmodels tashkeel train \
+    --init-from models/tashkeel_bilstm.pt \
+    --data mydata/tashkeel.jsonl --out mymodels/mine.pt \
+    --epochs 2 --lr 2e-4
+```
+
+On 2,257 rows and one epoch, that reaches 3.08 % dev DER, against 24.30 % for
+the same data trained from scratch. Build the dataset from your own corpus
+first:
 
 ```bash
 python scripts/build_datasets.py --task tashkeel --input mycorpus/
 ```
 
-Details, hyperparameters and what to expect per epoch: [`docs/TRAINING.md`](docs/TRAINING.md).
+Step-by-step instructions: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
+Hyperparameters and architecture: [`docs/TRAINING.md`](docs/TRAINING.md).
 
 ---
 
@@ -235,6 +255,7 @@ Read these before trusting a number.
 
 | | |
 |---|---|
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | **Start here** — running, training, fine-tuning and data formats, with worked scenarios ([بالعربية](docs/USER_GUIDE.ar.md)) |
 | [`docs/PAPER.md`](docs/PAPER.md) | Full method, architecture, training protocol and results |
 | [`docs/MODEL_CARDS.md`](docs/MODEL_CARDS.md) | Per-model card: inputs, outputs, metrics, intended use |
 | [`docs/DATA.md`](docs/DATA.md) | Dataset provenance, formats, filters, source-text licensing |
@@ -258,5 +279,9 @@ Read these before trusting a number.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE), including a note on the provenance of the
-training texts.
+Apache License 2.0 — see [`LICENSE`](LICENSE). Code, model weights and
+datasets are all covered.
+
+[`NOTICE`](NOTICE) carries the attribution required by section 4(d) of the
+license, plus a note on the provenance of the training texts. If you
+redistribute this work or a derivative, include `NOTICE` with it.

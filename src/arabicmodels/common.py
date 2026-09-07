@@ -163,6 +163,39 @@ def pad_words(batch: list[list[list[int]]]) -> torch.Tensor:
     return out
 
 
+def add_train_io_args(p) -> None:
+    """The `--data / --out / --init-from / --seed` group every train shares.
+
+    Without `--out`, training overwrites the shipped checkpoint in `models/`.
+    `--init-from` switches from training-from-scratch to fine-tuning: the
+    starting weights *and the vocabularies* come from that checkpoint, since
+    an embedding matrix is meaningless against a different vocabulary.
+    """
+    p.add_argument("--data", metavar="JSONL",
+                   help="training data (default: the shipped dataset)")
+    p.add_argument("--out", metavar="CKPT",
+                   help="where to write the checkpoint "
+                        "(default: overwrite the shipped one)")
+    p.add_argument("--init-from", metavar="CKPT",
+                   help="fine-tune from this checkpoint, reusing its vocabularies")
+    p.add_argument("--seed", type=int, default=13)
+
+
+def init_or_build(args, build, load) -> tuple:
+    """Either fine-tune from `--init-from` or build a fresh model.
+
+    `build()` returns (model, *vocabs) from the data; `load(ckpt)` returns the
+    same tuple from a checkpoint. Kept here so all three tasks behave alike.
+    """
+    if getattr(args, "init_from", None):
+        path = Path(args.init_from)
+        out = load(load_ckpt(path))
+        print(f"fine-tuning from {path} — vocabularies reused from the "
+              f"checkpoint, not rebuilt from the data")
+        return out
+    return build()
+
+
 def split_of(key: str) -> str:
     """Deterministic 90/5/5 train/dev/test split by content hash.
 

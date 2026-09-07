@@ -6,7 +6,7 @@ authors:
   - family-names: Khair
     given-names: Mohammad Mohammad
 repository-code: "https://github.com/khair/khair-arabic-models"
-license: MIT
+license: Apache-2.0
 version: 0.1.0
 date-released: "2026-09-07"
 keywords:

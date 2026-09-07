@@ -32,9 +32,13 @@ arabicmodels tashkeel  train --pos --epochs 3    # ~7 min   -> tashkeel_bilstm_p
 Roughly 5.5 min/epoch for structure, 15 s/epoch for POS, 2.2 min/epoch for each
 diacritizer. The whole family is about half an hour.
 
-**Training overwrites the checkpoint in `models/`** whenever a run beats its own
-previous best dev score. Copy the shipped weights elsewhere first if you want to
-keep them.
+**Without `--out`, training overwrites the checkpoint in `models/`** whenever a
+run beats its own previous best dev score. Pass `--out mymodels/x.pt` to write
+somewhere else; `git checkout models/` restores an overwritten one.
+
+To adapt a shipped model to a different corpus rather than retrain it, use
+`--init-from` — see [`USER_GUIDE.md` §5](USER_GUIDE.md#5-fine-tuning). It needs
+far less data and a learning rate about ten times lower.
 
 Then confirm you landed where the paper did:
 
@@ -64,9 +68,12 @@ differences as noise of unknown size.
 | Checkpoint selected on | best dev word accuracy | best dev accuracy | lowest dev DER(all) |
 | Seed | 13 | 13 | 13 |
 
-Useful flags on every `train` command: `--epochs`, `--batch-size`, `--lr`, and
-`--limit N` to read only the first N rows — handy for a 30-second smoke test
-before committing to a full run.
+Useful flags on every `train` command: `--epochs`, `--batch-size`, `--lr`,
+`--seed`, `--data` and `--out`, plus `--limit N` to read only the first N rows —
+handy for a 30-second smoke test before committing to a full run. `--init-from`
+switches to fine-tuning, which reuses the source checkpoint's vocabularies
+instead of rebuilding them from the data. The full option reference is in
+[`USER_GUIDE.md` §7](USER_GUIDE.md#7-options-reference).
 
 ## Architectures
 

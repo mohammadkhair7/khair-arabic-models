@@ -23,9 +23,10 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from .common import (DATA_DIR, MODELS_DIR, Vocab, WordTagger, device,
-                     encode_words, load_ckpt, pad_batch, pad_words,
-                     read_jsonl, save_ckpt, seed_all)
+from .common import (DATA_DIR, MODELS_DIR, Vocab, WordTagger,
+                     add_train_io_args, device, encode_words, init_or_build,
+                     load_ckpt, pad_batch, pad_words, read_jsonl, save_ckpt,
+                     seed_all)
 
 CKPT = MODELS_DIR / "pos_wordtagger.pt"
 DATA = DATA_DIR / "pos.jsonl"
@@ -74,18 +75,38 @@ def _evaluate(model, data, cvocab, tvocab, dev) -> dict:
 
 
 def train(args) -> None:
-    seed_all()
+    seed_all(args.seed)
     dev = device()
-    rows = read_jsonl(DATA, limit=args.limit)
+    data_path = Path(args.data) if args.data else DATA
+    out_path = Path(args.out) if args.out else CKPT
+    rows = read_jsonl(data_path, limit=args.limit)
     data = {s: [] for s in ("train", "dev", "test")}
     for r in rows:
         data[r["split"]].append(r)
     tr, dv = _prepare(data["train"]), _prepare(data["dev"])
-    cvocab = Vocab.build((list("".join(w)) for w, _ in tr), max_size=400)
-    tvocab = Vocab.build((t for _, t in tr), max_size=100)
-    model = WordTagger(len(cvocab), len(tvocab)).to(dev)
-    print(f"device={dev} train={len(tr)} dev={len(dv)} tags={len(tvocab)-2} "
-          f"params={sum(p.numel() for p in model.parameters()):,}")
+    if not tr:
+        raise SystemExit(f"no usable training rows in {data_path} — see docs/DATA.md")
+
+    def build():
+        cv = Vocab.build((list("".join(w)) for w, _ in tr), max_size=400)
+        tv = Vocab.build((t for _, t in tr), max_size=100)
+        return WordTagger(len(cv), len(tv)), cv, tv
+
+    def load(ck):
+        cv, tv = Vocab(ck["char_vocab"]), Vocab(ck["tag_vocab"])
+        m = WordTagger(len(cv), len(tv))
+        m.load_state_dict(ck["state_dict"])
+        return m, cv, tv
+
+    model, cvocab, tvocab = init_or_build(args, build, load)
+    model.to(dev)
+    unseen = {t for _, tags in tr for t in tags} - set(tvocab.stoi)
+    if unseen:
+        print(f"  warning: {len(unseen)} tag(s) absent from the vocabulary will "
+              f"train as <unk>: {sorted(unseen)[:8]}")
+    print(f"device={dev} data={data_path.name} train={len(tr)} dev={len(dv)} "
+          f"tags={len(tvocab)-2} params={sum(p.numel() for p in model.parameters()):,}")
+    print(f"checkpoint -> {out_path}")
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     lossf = nn.CrossEntropyLoss(ignore_index=-100)
@@ -109,9 +130,10 @@ def train(args) -> None:
               f"({time.time()-t0:.0f}s)", flush=True)
         if m["accuracy"] > best:
             best = m["accuracy"]
-            save_ckpt(CKPT, model, {"char_vocab": cvocab.stoi, "tag_vocab": tvocab.stoi,
-                                    "metrics": m, "task": "pos", "version": "0.1"})
-            print(f"  saved -> {CKPT}")
+            save_ckpt(out_path, model,
+                      {"char_vocab": cvocab.stoi, "tag_vocab": tvocab.stoi,
+                       "metrics": m, "task": "pos", "version": "0.1"})
+            print(f"  saved -> {out_path}")
 
 
 def load_model(path: Path | str | None = None):
@@ -126,8 +148,10 @@ def load_model(path: Path | str | None = None):
 
 def evaluate(args) -> None:
     dev = device()
-    rows = [r for r in read_jsonl(DATA, limit=args.limit) if r["split"] == "test"]
-    model, cvocab, tvocab = load_model()
+    data_path = Path(args.data) if args.data else DATA
+    rows = [r for r in read_jsonl(data_path, limit=args.limit)
+            if r["split"] == "test"]
+    model, cvocab, tvocab = load_model(args.ckpt)
     model.to(dev)
     m = _evaluate(model, _prepare(rows), cvocab, tvocab, dev)
     print(f"test tokens={m['tokens']}")
@@ -140,7 +164,7 @@ def evaluate(args) -> None:
 @torch.no_grad()
 def infer(args) -> None:
     text = args.text or Path(args.file).read_text(encoding="utf-8")
-    model, cvocab, tvocab = load_model()
+    model, cvocab, tvocab = load_model(args.ckpt)
     dev = device()
     model.to(dev)
     itos = tvocab.itos()
@@ -164,13 +188,17 @@ def build_parser(ap: argparse.ArgumentParser) -> argparse.ArgumentParser:
     tp.add_argument("--batch-size", type=int, default=32)
     tp.add_argument("--lr", type=float, default=1e-3)
     tp.add_argument("--limit", type=int, default=None)
+    add_train_io_args(tp)
     tp.set_defaults(func=train)
     ep = sub.add_parser("eval", help="agreement with the teacher on the test split")
     ep.add_argument("--limit", type=int, default=None)
+    ep.add_argument("--data", metavar="JSONL")
+    ep.add_argument("--ckpt", metavar="CKPT")
     ep.set_defaults(func=evaluate)
     ip = sub.add_parser("infer", help="tag text as word/tag pairs")
     ip.add_argument("--text")
     ip.add_argument("--file")
+    ip.add_argument("--ckpt", metavar="CKPT")
     ip.set_defaults(func=infer)
     return ap
 

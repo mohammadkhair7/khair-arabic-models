@@ -31,6 +31,11 @@ each text was typed from. The rows here are short, non-contiguous excerpts
 results in `PAPER.md` are reproducible. If you plan to redistribute the data
 commercially, check the standing of the source editions where you are.
 
+These datasets are released under the Apache License 2.0, the same terms as
+the code and the model weights. The provenance caveat above is restated in
+[`NOTICE`](../NOTICE), which section 4(d) of that license requires you to
+carry along with any redistribution.
+
 ### Diacritization source
 
 Densely vocalized editions were preferred, led by the Dār al-Shaʿb printing of

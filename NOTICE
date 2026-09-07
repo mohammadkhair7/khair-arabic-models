@@ -1,0 +1,34 @@
+arabicmodels
+Copyright 2026 Mohammad Mohammad Khair
+International Computing Institute for Quran and Islamic Sciences
+(qurancomputing.org)
+
+This product includes software, model weights and datasets developed for the
+AdvancedHadith project and released under the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------
+NOTE ON THE TRAINING DATA
+--------------------------------------------------------------------------
+
+The datasets under `data/` are derived from digitized editions of classical
+Arabic hadith collections. The underlying works are centuries old and in the
+public domain. The particular digitizations and modern critical editions from
+which the text was harvested may carry editorial rights in some
+jurisdictions; the excerpts retained here are short, non-contiguous windows
+kept for research and reproducibility. See `docs/DATA.md` for provenance
+details. If you intend to redistribute the datasets commercially, review the
+position of the source editions in your own jurisdiction.
+
+--------------------------------------------------------------------------
+THIRD-PARTY COMPONENTS
+--------------------------------------------------------------------------
+
+The optional silver-label teacher in `src/arabicmodels/teachers/` calls
+CAMeL Tools, which is distributed separately under the MIT License and is not
+bundled with this product:
+
+    CAMeL Tools — https://github.com/CAMeL-Lab/camel_tools
+    Copyright (c) 2018-2024 New York University Abu Dhabi
+
+The POS dataset in `data/pos.jsonl` contains silver labels produced by that
+tool. Training and inference with the shipped models do not require it.
