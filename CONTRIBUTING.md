@@ -23,6 +23,50 @@ git lfs status
 git lfs ls-files          # should list 4 checkpoints + 4 datasets
 ```
 
+## Publishing: two repositories, always in step
+
+This project is published twice, and the two copies must never diverge:
+
+| Remote | Repository | Account that can write to it |
+| --- | --- | --- |
+| `origin` | [mohammadkhair7/khair-arabic-models](https://github.com/mohammadkhair7/khair-arabic-models) | `mohammadkhair7` |
+| `qurancomp` | [qurancomp/khair-arabic-models](https://github.com/qurancomp/khair-arabic-models) | `qurancomp` |
+
+**Every commit goes to both.** A plain `git push` cannot do this — each
+repository is writable by a different GitHub account, and git presents only
+one credential per host. Use the sync script, which pushes each remote with
+its own account active via `gh auth switch` and then re-reads both remote
+heads to prove they match:
+
+```bash
+python scripts/sync_repos.py            # push the current branch to both
+python scripts/sync_repos.py --check    # verify only, push nothing
+git sync                                # the same thing, if you set the alias
+```
+
+Set the alias once per clone:
+
+```bash
+git config alias.sync '!python scripts/sync_repos.py'
+```
+
+Both accounts need `gh auth login` (check with `gh auth status`). The script
+restores whichever account was active before it ran, including after a
+failure. If it reports `OUT OF SYNC`, fix that before doing anything else —
+a half-published release is worse than an unpublished one.
+
+## Secrets
+
+The web app reads one credential, `SENDGRID_API_KEY`, and it must never be
+committed. `.env` is git-ignored; `webapp/.env.example` is the only tracked
+file that names these variables and it holds empty values. Enable the guard
+once per clone:
+
+```bash
+git config core.hooksPath .githooks     # runs scripts/check_secrets.py
+python scripts/check_secrets.py --all   # scan the whole tree
+```
+
 ## What is most useful
 
 In rough order of impact on the numbers in the paper:
