@@ -146,6 +146,69 @@ def test_structure_returns_labelled_segments(client):
 
 
 @needs_models
+def test_pos_tags_are_named_in_the_requested_language(client):
+    """The same run reads as English or Arabic; the codes never change."""
+    text = "حدثنا قتيبة بن سعيد"
+    en = client.post("/api/process", data={
+        "task": "pos", "text": text, "lang": "en"}).json()
+    ar = client.post("/api/process", data={
+        "task": "pos", "text": text, "lang": "ar"}).json()
+
+    assert en["lang"] == "en" and ar["lang"] == "ar"
+    # Pairs carry canonical codes either way - the language only changes how
+    # they are rendered, so a client can relabel without asking again.
+    assert en["units"][0]["pairs"] == ar["units"][0]["pairs"]
+    assert en["units"][0]["output"] != ar["units"][0]["output"]
+    assert "/noun" in en["units"][0]["output"]
+    assert "/اسم" in ar["units"][0]["output"] or "/فعل" in ar["units"][0]["output"]
+
+
+@needs_models
+def test_structure_labels_are_named_in_the_requested_language(client):
+    unit = ("1248 - حدثنا محمد بن بشار قال حدثنا يحيى عن عبيد الله قال حدثني "
+            "نافع عن ابن عمر ان رسول الله صلى الله عليه وسلم قال من اقتنى كلبا")
+    ar = client.post("/api/process", data={
+        "task": "structure", "text": unit, "lang": "ar"}).json()
+    assert "[الإسناد]" in ar["units"][0]["output"]
+    assert {label for label, _ in ar["units"][0]["pairs"]} <= {
+        "HNUM", "ISNAD", "MATN", "HEADING"}
+
+
+@needs_models
+def test_download_can_be_relabelled_without_reprocessing(client):
+    """`?lang=` re-renders a cached result, so the toggle costs no inference."""
+    token = client.post("/api/process", data={
+        "task": "pos", "text": "حدثنا قتيبة بن سعيد", "lang": "en"}).json()["token"]
+
+    en = client.get(f"/api/download/{token}/csv").content.decode("utf-8-sig")
+    ar = client.get(f"/api/download/{token}/csv?lang=ar").content.decode("utf-8-sig")
+
+    en_rows = list(csv.reader(io.StringIO(en)))
+    ar_rows = list(csv.reader(io.StringIO(ar)))
+    assert en_rows[0] == ["line", "word", "tag", "tag_code"]
+    assert ar_rows[0] == ["line", "الكلمة", "الوسم", "tag_code"]
+    # The machine-readable column is identical; only the display name moved.
+    assert [r[3] for r in en_rows[1:]] == [r[3] for r in ar_rows[1:]]
+    assert [r[2] for r in en_rows[1:]] != [r[2] for r in ar_rows[1:]]
+
+
+def test_config_advertises_both_label_languages(client):
+    body = client.get("/api/config").json()
+    assert [l["key"] for l in body["languages"]] == ["en", "ar"]
+    assert len(body["tag_sets"]["pos"]) == 24
+    assert len(body["tag_sets"]["structure"]) == 4
+    noun = next(t for t in body["tag_sets"]["pos"] if t["code"] == "noun")
+    assert noun["en"] == "noun" and noun["ar"] == "اسم"
+
+
+@needs_models
+def test_unknown_label_language_falls_back_to_english(client):
+    body = client.post("/api/process", data={
+        "task": "tashkeel", "text": "قال", "lang": "fr"}).json()
+    assert body["lang"] == "en"
+
+
+@needs_models
 def test_fill_gaps_preserves_existing_diacritics(client):
     body = client.post("/api/process", data={
         "task": "tashkeel_gaps", "text": "قَالَ رسول الله"}).json()
@@ -197,7 +260,7 @@ def test_csv_export_of_pos_is_token_level(client):
         "task": "pos", "text": "حدثنا قتيبة بن سعيد"}).json()["token"]
     body = client.get(f"/api/download/{token}/csv").content.decode("utf-8-sig")
     rows = list(csv.reader(io.StringIO(body)))
-    assert rows[0] == ["line", "word", "tag"]
+    assert rows[0] == ["line", "word", "tag", "tag_code"]
     assert len(rows) == 5
 
 

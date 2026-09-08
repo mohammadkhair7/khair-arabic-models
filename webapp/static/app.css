@@ -216,8 +216,18 @@ code { background: #eef1f5; padding: 0 0.3em; border-radius: 4px; font-size: 0.9
   align-items: center; justify-content: space-between;
   padding: 0.75rem 0; border-block: 1px solid var(--line); margin-bottom: 1rem;
 }
-.downloads, .toggles { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.downloads, .toggles, .langs { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .toolbar-label { font-size: 0.86rem; color: var(--muted); }
+
+/* English / Arabic switch for the POS and structure tag names. */
+.langs #lang-buttons { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.lang {
+  border: 0; background: #fff; font: inherit; font-size: 0.86rem;
+  padding: 0.35rem 0.75rem; color: var(--muted); cursor: pointer;
+}
+.lang + .lang { border-inline-start: 1px solid var(--line); }
+.lang:hover { background: var(--teal-soft); color: var(--teal-dark); }
+.lang.is-active { background: var(--teal); color: #fff; }
 
 .dl, .ghost {
   border: 1px solid var(--line); border-radius: 7px; background: #fff;
@@ -239,6 +249,11 @@ code { background: #eef1f5; padding: 0 0.3em; border-radius: 4px; font-size: 0.9
   font-family: system-ui, sans-serif; font-size: 0.62rem; letter-spacing: 0.03em;
   color: var(--teal-dark); background: var(--teal-soft);
   border-radius: 4px; padding: 0 0.3rem; line-height: 1.5;
+}
+/* Arabic tag names are words, not codes: they need the Arabic face and a
+   size that keeps their diacritic-free shapes legible under the token. */
+.tok .t[lang="ar"], .seg .lab[lang="ar"] {
+  font-family: var(--arabic); letter-spacing: 0; font-size: 0.85rem;
 }
 
 .seg { display: flex; gap: 0.6rem; align-items: baseline; margin-bottom: 0.3rem; }

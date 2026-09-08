@@ -115,27 +115,31 @@ Figure 1 shows how the pieces fit together; Table 1 summarizes the four
 models.
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph CORPUS["Corpus (PostgreSQL)"]
-        P["passages.text_raw<br/>659k passages, 33 collections"]
-        IC["isnad_chains.sanad_end_raw<br/>(rule parser output + confidence)"]
+        direction LR
+        P["passages.text_raw<br/>659k passages<br/>33 collections"]
+        IC["isnad_chains.<br/>sanad_end_raw<br/>rule parser + confidence"]
         TOC["toc_nodes.title"]
     end
     subgraph LABELS["Label harvesting"]
-        L1["Rules as labeler<br/>40k units + 8k headings"]
-        L2["Text as labeler<br/>70k vocalized windows"]
-        L3["Engine as labeler<br/>CAMeL tags on 4k units"]
+        direction LR
+        L1["Rules as labeler<br/>40k units<br/>+ 8k headings"]
+        L2["Text as labeler<br/>70k vocalized<br/>windows"]
+        L3["Engine as labeler<br/>CAMeL tags<br/>on 4k units"]
     end
     subgraph MODELS["Four compact models"]
-        M1["A. Structure WordTagger<br/>2.84 M params"]
-        M2["C. POS WordTagger<br/>2.85 M params"]
-        M3["B1. TashkeelNet v0.1<br/>5.15 M params"]
-        M4["B2. TashkeelPosNet v0.2<br/>5.25 M params"]
+        direction LR
+        M1["A. Structure<br/>WordTagger<br/>2.84 M"]
+        M2["C. POS<br/>WordTagger<br/>2.85 M"]
+        M3["B1. TashkeelNet<br/>v0.1<br/>5.15 M"]
+        M4["B2. TashkeelPosNet<br/>v0.2<br/>5.25 M"]
     end
     subgraph SERVE["Serving (no model at request time)"]
-        PA["passage_annotations<br/>(layer, engine, version, payload)"]
+        direction LR
+        PA["passage_annotations<br/>layer, engine,<br/>version, payload"]
         API["Backend API<br/>read-time join"]
-        UI["hadith.chat reader<br/>sanad/matn highlight, tashkīl toggle"]
+        UI["hadith.chat reader<br/>sanad/matn highlight<br/>tashkīl toggle"]
     end
     P --> L1
     IC --> L1
@@ -391,30 +395,26 @@ turns them into three JSONL datasets (Figure 2, Table 5).
 flowchart TB
     subgraph R["Rules as labeler"]
         direction LR
-        R1["isnad_chains joined to passages<br/>sanad_end_raw > 30, first chain (ord = 0),<br/>confidence ≥ 0.9, 150 ≤ length ≤ 4000<br/>random 40,000 units"] --> R2["word offset vs. sanad_end:<br/>leading number → HNUM<br/>before boundary → ISNAD, after → MATN"]
-        R2 --> R3["keep units with ≥ 6 words<br/>containing both ISNAD and MATN"]
-        R4["toc_nodes.title, 15–200 chars<br/>random 8,000 titles"] --> R5["every word → HEADING<br/>keep titles with ≥ 2 words"]
-        R3 --> RD["indexing.jsonl<br/>48,000 rows"]
+        R1["isnad_chains ⋈ passages<br/>sanad_end_raw > 30<br/>first chain (ord = 0)<br/>confidence ≥ 0.9<br/>150 ≤ length ≤ 4000<br/>random 40,000 units"] --> R2["word offset vs. sanad_end:<br/>leading number → HNUM<br/>before → ISNAD, after → MATN<br/>keep units with ≥ 6 words<br/>holding both ISNAD and MATN"]
+        R4["toc_nodes.title<br/>15–200 chars<br/>random 8,000"] --> R5["every word → HEADING<br/>keep titles with ≥ 2 words"]
+        R2 --> RD["indexing.jsonl<br/>48,000 rows"]
         R5 --> RD
     end
     subgraph T["Text as labeler"]
         direction LR
-        T1["Shamela passages, length > 200<br/>edition 91 (Dār al-Shaʿb Bukhārī) first,<br/>≤ 3,000 random passages per edition"] --> T2["remove viewer artefacts<br/>cut into windows ≤ 380 chars<br/>on word boundaries"]
-        T2 --> T3["keep windows with ≥ 60 Arabic letters<br/>and marks per letter ≥ 0.6"]
-        T3 --> T4["split_marks → bare input x,<br/>per-letter class y"]
-        T4 --> TD["tashkeel.jsonl<br/>70,000 rows"]
+        T1["Shamela passages<br/>length > 200<br/>edition 91 first<br/>(Dār al-Shaʿb Bukhārī)<br/>≤ 3,000 per edition"] --> T2["remove viewer artefacts<br/>cut into windows ≤ 380 chars<br/>on word boundaries<br/>keep those with ≥ 60 Arabic<br/>letters and ≥ 0.6 marks per letter"]
+        T2 --> TD["split_marks → bare input x,<br/>per-letter class y<br/><br/>tashkeel.jsonl<br/>70,000 rows"]
     end
     subgraph E["Engine as labeler"]
         direction LR
-        E1["passages of kind unit<br/>200 ≤ length ≤ 2500<br/>random 4,000"] --> E2["CAMeL analyzer (calima-msa-r13,<br/>NOAN_PROP backoff)<br/>one analysis per whitespace token"]
-        E2 --> E3["pos field of the chosen analysis → tag<br/>keep units with ≥ 8 tokens"]
-        E3 --> ED["pos.jsonl<br/>4,000 rows"]
+        E1["passages of kind unit<br/>200 ≤ length ≤ 2500<br/>random 4,000"] --> E2["CAMeL analyzer, calima-msa-r13<br/>NOAN_PROP backoff<br/>one analysis per token<br/>pos field → tag<br/>keep units with ≥ 8 tokens"]
+        E2 --> ED["pos.jsonl<br/>4,000 rows"]
     end
     R ~~~ T
     T ~~~ E
     classDef data fill:#e8f4ff,stroke:#1e6fb8,color:#000
     classDef out fill:#eaf7ea,stroke:#2e8b57,color:#000
-    class R1,R2,R3,R4,R5,T1,T2,T3,T4,E1,E2,E3 data
+    class R1,R2,R4,R5,T1,T2,E1,E2 data
     class RD,TD,ED out
 ```
 
@@ -468,16 +468,16 @@ inverse `apply_marks` re-inserts predicted marks after the corresponding
 letters and never touches the letters themselves (Figure 3).
 
 ```mermaid
-flowchart LR
+flowchart TB
     V["vocalized window<br/>(reference from the print)"] --> S["split_marks"]
-    S --> B["bare text x<br/>(letters, spaces, punctuation)"]
+    S --> B["bare text x<br/>letters, spaces, punctuation"]
     S --> Y["per-character class y in 0…15<br/>non-letters masked out"]
     B --> N["TashkeelNet"]
-    N --> P["predicted class per letter"]
+    N --> P["predicted class<br/>per letter"]
     P --> A["apply_marks(x, pred)"]
     B --> A
     A --> O["vocalized output<br/>base letters guaranteed unchanged"]
-    Y -. "cross-entropy loss during training" .-> P
+    Y -. "cross-entropy loss<br/>during training" .-> P
     classDef data fill:#e8f4ff,stroke:#1e6fb8,color:#000
     classDef model fill:#eaf7ea,stroke:#2e8b57,color:#000
     class V,B,Y,P,O data
@@ -649,30 +649,25 @@ flowchart LR
     subgraph V1["v0.1 — characters only"]
         direction TB
         A0["bare window, ≤ 380 characters"] --> A1["character embedding 77 × 128"]
-        A1 --> A2["BiLSTM layer 1<br/>hidden 384 per direction → 768"]
-        A2 --> A3["dropout 0.2"]
-        A3 --> A4["BiLSTM layer 2<br/>hidden 384 per direction → 768"]
-        A4 --> A5["linear 768 → 16"]
+        A1 --> A2["BiLSTM layer 1 → dropout 0.2 → BiLSTM layer 2<br/>hidden 384 per direction → 768"]
+        A2 --> A5["linear 768 → 16"]
         A5 --> A6["argmax per Arabic letter<br/>→ diacritic class"]
     end
     subgraph V2["v0.2 — characters + POS"]
         direction TB
-        B0["bare window, ≤ 380 characters"] --> B1["character embedding 77 × 128"]
-        B0 --> B2["POS student tags each word<br/>tag copied to every character"]
-        B2 --> B3["tag embedding 24 × 32"]
+        B0["bare window, ≤ 380 characters"] -->         B1["character embedding 77 × 128"]
+        B0 --> B2["POS student tags each word<br/>tag copied to every character<br/>tag embedding 24 × 32"]
         B1 --> B4["concatenate → 160-d per character"]
-        B3 --> B4
-        B4 --> B5["BiLSTM layer 1<br/>hidden 384 per direction → 768"]
-        B5 --> B6["dropout 0.2"]
-        B6 --> B7["BiLSTM layer 2<br/>hidden 384 per direction → 768"]
-        B7 --> B8["linear 768 → 16"]
+        B2 --> B4
+        B4 --> B5["BiLSTM layer 1 → dropout 0.2 → BiLSTM layer 2<br/>hidden 384 per direction → 768"]
+        B5 --> B8["linear 768 → 16"]
         B8 --> B9["argmax per Arabic letter<br/>→ diacritic class"]
     end
     V1 ~~~ V2
     classDef model fill:#eaf7ea,stroke:#2e8b57,color:#000
     classDef feat fill:#fff4d6,stroke:#b8860b,color:#000
-    class A1,A2,A3,A4,A5,B1,B4,B5,B6,B7,B8 model
-    class B2,B3 feat
+    class A1,A2,A5,B1,B4,B5,B8 model
+    class B2 feat
 ```
 
 *Figure 5. The two diacritizers: TashkeelNet v0.1 (5,146,256 parameters,
@@ -710,11 +705,11 @@ inference to tag the bare text that v0.2 diacritizes (Figure 6). The teacher
 is never needed after the POS dataset is built.
 
 ```mermaid
-flowchart LR
-    T["CAMeL Tools analyzer<br/>(teacher, needs morphology database)"] -- "silver tags on 4,000 units" --> S["POS student — WordTagger<br/>2.85 M params, no database"]
-    S -- "tags the 70,000 tashkīl windows<br/>(tashkeel tag-data)" --> D["tashkeel_pos.jsonl"]
+flowchart TB
+    T["CAMeL Tools analyzer<br/>teacher — needs the<br/>morphology database"] -- "silver tags<br/>on 4,000 units" --> S["POS student — WordTagger<br/>2.85 M params, no database"]
+    S -- "tags the 70,000<br/>tashkīl windows<br/>(tashkeel tag-data)" --> D["tashkeel_pos.jsonl"]
     D --> M["TashkeelPosNet v0.2<br/>training"]
-    S -. "at inference: tags the bare text first" .-> M
+    S -. "at inference:<br/>tags the bare text first" .-> M
     classDef model fill:#eaf7ea,stroke:#2e8b57,color:#000
     classDef data fill:#e8f4ff,stroke:#1e6fb8,color:#000
     classDef src fill:#fff4d6,stroke:#b8860b,color:#000
@@ -739,27 +734,18 @@ dev metric is kept. There is no learning-rate schedule, warm-up or early
 stopping beyond best-checkpoint selection.
 
 ```mermaid
-flowchart TD
-    A["read JSONL rows"] --> B["route rows by split: train / dev / test"]
-    B --> C["build vocabularies from train only<br/>characters (≤ 400), tags"]
-    C --> D["shuffle, batch, pad<br/>pad label = −100 (ignored by the loss)"]
-    D --> E["forward pass → logits"]
-    E --> F["cross-entropy on unmasked positions"]
-    F --> G["backward; clip global grad-norm to 2.0; AdamW step"]
-    G --> H{"epoch finished?"}
-    H -- no --> D
-    H -- yes --> I["evaluate on dev"]
-    I --> J{"best dev metric so far?"}
-    J -- yes --> K["save checkpoint<br/>weights + vocabularies + dev metrics + version"]
-    J -- no --> L["keep previous checkpoint"]
-    K --> M{"more epochs?"}
-    L --> M
-    M -- yes --> D
-    M -- no --> N["evaluate the saved checkpoint once on test"]
+flowchart TB
+    A["read JSONL rows, route by split<br/>build vocabularies from train only"]
+    A --> D["shuffle, batch, pad<br/>pad label −100, ignored by the loss"]
+    D --> E["forward → logits → cross-entropy<br/>backward, clip grad-norm 2.0, AdamW"]
+    E -- "more batches" --> D
+    E -- "epoch done" --> I["evaluate on dev<br/>save checkpoint if best so far"]
+    I -- "more epochs" --> D
+    I -- "no epochs left" --> N["evaluate the saved checkpoint on test"]
     classDef model fill:#eaf7ea,stroke:#2e8b57,color:#000
     classDef data fill:#e8f4ff,stroke:#1e6fb8,color:#000
-    class E,F,G model
-    class A,B,C,D,K data
+    class E model
+    class A,D,I data
 ```
 
 *Figure 7. The shared training loop (`train` subcommand of each module).*
@@ -980,22 +966,21 @@ read time (Figure 13).
 ```mermaid
 sequenceDiagram
     autonumber
-    participant CLI as annotate CLI (GPU workstation)
+    participant CLI as annotate CLI
     participant PG as PostgreSQL
-    participant PUSH as railway_push_annotations.py
-    participant API as Backend API (CPU only)
-    participant UI as Reader UI (HadithText.tsx)
-    CLI->>PG: select passages of edition N not yet annotated at this version
-    loop for every passage
-        CLI->>CLI: run model, build payload (structure spans or merged diacritized text)
-        CLI->>PG: delete older versions, upsert row (layer, engine, version, payload)
+    participant API as Backend API
+    participant UI as Reader UI
+    CLI->>PG: select passages<br/>not yet annotated
+    loop every passage
+        CLI->>CLI: run model,<br/>build payload
+        CLI->>PG: drop older,<br/>upsert row
     end
-    CLI->>PG: mark etl_state step done (resumable ledger)
-    PUSH->>PG: copy passage_annotations rows to production
+    CLI->>PG: mark etl_state done
+    PG->>PG: push script copies<br/>rows to production
     UI->>API: request passage
-    API->>PG: passage joined with passage_annotations on (layer, engine)
-    API-->>UI: text_raw, text_diac, structure_spans
-    UI->>UI: highlight sanad/matn, toggle tashkīl (offsets remapped)
+    API->>PG: join on<br/>(layer, engine)
+    API-->>UI: text_raw, text_diac,<br/>structure_spans
+    UI->>UI: highlight sanad/matn,<br/>toggle tashkīl
 ```
 
 *Figure 13. Offline annotation and read-time serving. The serving tier is
@@ -1015,14 +1000,10 @@ diacritic keep their original marks verbatim; Qurʾānic citation spans
 of ≤ 380 characters, so they retain sentence context.
 
 ```mermaid
-flowchart TD
-    W["next whitespace token of the passage"] --> Q1{"inside a Qurʾān span<br/>(ornate brackets or braces)?"}
-    Q1 -- yes --> K["keep verbatim"]
-    Q1 -- no --> Q2{"already carries any diacritic?"}
-    Q2 -- yes --> K
-    Q2 -- no --> Q3{"contains Arabic letters?"}
-    Q3 -- no --> K
-    Q3 -- yes --> M["collect for the model<br/>(chunks ≤ 380 characters)"]
+flowchart TB
+    W["next whitespace token<br/>of the passage"] --> Q{"inside a Qurʾān span,<br/>or already carries<br/>any diacritic,<br/>or has no Arabic letters?"}
+    Q -- yes --> K["keep verbatim"]
+    Q -- no --> M["collect for the model<br/>chunks ≤ 380 characters"]
     M --> R["insert predicted marks<br/>letters unchanged"]
     classDef keep fill:#f3e8ff,stroke:#7b3fb8,color:#000
     classDef model fill:#eaf7ea,stroke:#2e8b57,color:#000

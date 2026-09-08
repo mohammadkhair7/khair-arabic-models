@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.formparsers import MultiPartParser
 
-from . import extract, integrations, process, render, security
+from . import extract, integrations, labels, process, render, security
 from .config import settings
 from .integrations import FeedbackError
 from .security import UnsafeUpload
@@ -155,7 +155,8 @@ async def config() -> dict:
     return {
         "tasks": [
             {"key": t.key, "label": t.label, "label_ar": t.label_ar,
-             "description": t.description, "description_ar": t.description_ar}
+             "description": t.description, "description_ar": t.description_ar,
+             "tag_kind": t.tag_kind}
             for t in process.TASKS.values()
         ],
         "formats": [
@@ -165,6 +166,13 @@ async def config() -> dict:
             {"key": "pdf", "label": "PDF (.pdf)", "available": render.pdf_available()},
         ],
         "accept": sorted(security.ALLOWED_EXTENSIONS),
+        # The page relabels a finished result client-side, so it needs the
+        # whole tag set up front rather than a round trip per switch.
+        "languages": [
+            {"key": "en", "label": "English"},
+            {"key": "ar", "label": "العربية"},
+        ],
+        "tag_sets": {kind: labels.glossary(kind) for kind in labels.SETS},
         "limits": {
             "max_upload_mb": settings.max_upload_bytes // (1024 * 1024),
             "max_text_chars": settings.max_text_chars,
@@ -217,10 +225,12 @@ async def run(
     task: str = Form(...),
     text: str | None = Form(None),
     column: str | None = Form(None),
+    lang: str = Form(labels.DEFAULT_LANGUAGE),
     file: UploadFile | None = None,
 ):
     if task not in process.TASKS:
         raise HTTPException(400, "Unknown task.")
+    lang = labels.normalize(lang)
 
     scan_status = "not applicable"
     if file is not None and file.filename:
@@ -240,7 +250,7 @@ async def run(
         raise HTTPException(400, "Please paste some text or choose a file.")
 
     try:
-        result = await run_in_threadpool(process.process, document, task)
+        result = await run_in_threadpool(process.process, document, task, lang)
     except UnsafeUpload:
         raise
     except Exception:                        # noqa: BLE001
@@ -266,8 +276,12 @@ async def run(
         "notes": result.notes,
         "is_table": result.document.is_table,
         "columns": (result.document.table.columns if result.document.table else None),
+        "lang": result.lang,
+        "tag_kind": process.TASKS[task].tag_kind,
         "units": [
             {"n": u.n, "source": u.source, "output": u.output,
+             # Codes, not names: the page holds the glossary and renders the
+             # names itself, so the language toggle costs no round trip.
              "pairs": [list(p) for p in u.pairs]}
             for u in shown
         ],
@@ -275,10 +289,12 @@ async def run(
 
 
 @app.get("/api/download/{token}/{fmt}")
-async def download(token: str, fmt: str) -> Response:
+async def download(token: str, fmt: str, lang: str | None = None) -> Response:
     if fmt not in render.RENDERERS:
         raise HTTPException(404, "Unknown format.")
     result = _uncache(token)
+    if lang is not None:
+        result = process.relabel(result, lang)
     try:
         body = await run_in_threadpool(render.render, result, fmt)
     except RuntimeError as exc:              # PDF font missing

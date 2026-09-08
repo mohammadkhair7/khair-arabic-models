@@ -24,6 +24,12 @@ milliseconds. Pass `--preload` to pay that cost at startup instead.
 | **Part-of-speech tags** | Each word labelled with one of 24 tags. |
 | **Hadith structure** | Text split into hadith number, isnād, matn and heading. |
 
+Tag names are shown in **English or Arabic**, switchable on the result itself.
+The models emit codes (`noun_prop`, `MATN`); the language only chooses the
+dictionary those codes are read through, so switching redraws the page without
+running anything again, and `?lang=ar` re-renders a download the same way.
+Exports keep a `tag_code` column so the file stays machine-readable either way.
+
 **Input** — pasted text, or `.txt`, `.csv`, `.xlsx`, `.doc`, `.docx`.
 For spreadsheets the app finds the Arabic column by itself (scoring each
 column by how much Arabic script it holds) and you can override it by name or

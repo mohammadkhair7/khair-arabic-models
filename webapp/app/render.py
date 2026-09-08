@@ -16,6 +16,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import labels
 from .config import settings
 from .process import TASKS, Result
 from .security import csv_safe
@@ -44,6 +45,7 @@ def _meta(result: Result) -> list[tuple[str, str]]:
         ("Units", f"{len(result.units):,}"),
         ("Processed", _stamp()),
         ("Time", f"{result.elapsed_s:.1f}s"),
+        ("Labels", "Arabic" if result.lang == "ar" else "English"),
     ]
 
 
@@ -66,14 +68,22 @@ def as_csv(result: Result) -> bytes:
         writer.writerow([csv_safe(c) for c in table.columns] + [task.key])
         for row, unit in zip(table.rows, result.units):
             writer.writerow([csv_safe(c) for c in row] + [csv_safe(unit.output)])
-    elif task.pair_columns:
+    elif task.tag_kind:
         # One row per word (POS) or per segment (structure): the shape you
-        # actually want to sort, filter and pivot on.
-        left, right = task.pair_columns
-        writer.writerow(["line", left, right])
+        # actually want to sort, filter and pivot on. The canonical code rides
+        # along in its own column so the sheet stays machine-readable no
+        # matter which language the names were rendered in.
+        left, right = labels.columns(task.tag_kind, result.lang)
+        writer.writerow(["line", left, right, "tag_code"])
         for unit in result.units:
             for a, b in unit.pairs:
-                writer.writerow([unit.n, csv_safe(a), csv_safe(b)])
+                # POS pairs read (word, tag); structure pairs read (label,
+                # chunk). Either way the code is the one that is a known tag.
+                word, code = (b, a) if task.tag_kind == "structure" else (a, b)
+                writer.writerow([unit.n, csv_safe(word),
+                                 csv_safe(labels.name(task.tag_kind, code,
+                                                      result.lang)),
+                                 csv_safe(code)])
     else:
         writer.writerow(["line", "input", "output"])
         for unit in result.units:

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
+from . import labels
 from .config import settings
 from .extract import Document
 
@@ -21,8 +22,9 @@ class Unit:
     n: int
     source: str
     output: str
-    # (token, label) for the tagging tasks; empty for diacritization. The UI
-    # uses it to colour words, and the CSV/Markdown exporters to add columns.
+    # (token, tag code) for the tagging tasks; empty for diacritization. The
+    # codes stay canonical here - `labels.name` turns them into English or
+    # Arabic at the moment of display, so one result can be shown either way.
     pairs: list[tuple[str, str]] = field(default_factory=list)
 
 
@@ -36,6 +38,9 @@ class Result:
     notes: list[str] = field(default_factory=list)
     scan_status: str = "skipped"
     source_name: str = "pasted text"
+    # Language the tag names are shown in. Not the language of the text - the
+    # text is always Arabic - only of the labels wrapped around it.
+    lang: str = labels.DEFAULT_LANGUAGE
 
 
 # --------------------------------------------------------------------------
@@ -54,7 +59,6 @@ def _get(key: str):
                 device = settings.device
                 builder = {
                     "tashkeel": lambda: Diacritizer.load(pos=True, device=device),
-                    "tashkeel_plain": lambda: Diacritizer.load(pos=False, device=device),
                     "pos": lambda: PosTagger.load(device=device),
                     "structure": lambda: StructureTagger.load(device=device),
                 }[key]
@@ -83,18 +87,24 @@ def _run_tashkeel_gaps(text: str) -> tuple[str, list]:
     return _get("tashkeel").fill_gaps(text), []
 
 
-def _run_tashkeel_plain(text: str) -> tuple[str, list]:
-    return _get("tashkeel_plain").diacritize(text), []
-
-
 def _run_pos(text: str) -> tuple[str, list]:
-    pairs = _get("pos").tag(text)
-    return " ".join(f"{w}/{t}" for w, t in pairs), pairs
+    return "", _get("pos").tag(text)
 
 
 def _run_structure(text: str) -> tuple[str, list]:
-    segments = _get("structure").segments(text)
-    return "\n".join(f"[{label}] {chunk}" for label, chunk in segments), segments
+    return "", _get("structure").segments(text)
+
+
+def _format_pairs(kind: str, pairs: list, lang: str) -> str:
+    """Render tagged output as text, in the reader's language.
+
+    POS pairs are (word, tag) and read left-to-right as `word/tag`; structure
+    pairs are (label, chunk) and lead with the bracketed label.
+    """
+    if kind == "pos":
+        return " ".join(f"{w}/{labels.name('pos', t, lang)}" for w, t in pairs)
+    return "\n".join(f"[{labels.name('structure', label, lang)}] {chunk}"
+                     for label, chunk in pairs)
 
 
 @dataclass(frozen=True)
@@ -105,15 +115,16 @@ class Task:
     description: str
     description_ar: str
     run: object
-    # Column headings the exporters add for this task's `pairs`.
-    pair_columns: tuple[str, str] | None = None
+    # Which tag set this task's `pairs` are drawn from, or None if it emits
+    # plain text. Drives both the exporters' columns and the label language.
+    tag_kind: str | None = None
 
 
 TASKS: dict[str, Task] = {t.key: t for t in (
     Task("tashkeel", "Diacritize (tashkīl)", "التشكيل الكامل",
          "Restore every diacritic from the bare letters, using the "
-         "grammar-aware v0.2 model.",
-         "إعادة بناء جميع الحركات من الحروف المجردة بالنموذج النحوي (الإصدار ٢).",
+         "grammar-aware model.",
+         "إعادة بناء جميع الحركات من الحروف المجردة بالنموذج النحوي.",
          _run_tashkeel),
     Task("tashkeel_gaps", "Fill missing diacritics", "إكمال الحركات الناقصة",
          "Keep the diacritics the text already has and only vowel the words "
@@ -121,22 +132,42 @@ TASKS: dict[str, Task] = {t.key: t for t in (
          "الإبقاء على الحركات الموجودة وتشكيل الكلمات المجردة فقط، مع عدم المساس "
          "بالآيات القرآنية.",
          _run_tashkeel_gaps),
-    Task("tashkeel_plain", "Diacritize (v0.1, no grammar)", "التشكيل (الإصدار ١)",
-         "The earlier character-only diacritizer. Useful for comparison.",
-         "النموذج الأول المعتمد على الحروف فقط، للمقارنة.",
-         _run_tashkeel_plain),
     Task("pos", "Part-of-speech tags", "الوسم الصرفي",
          "Label every word with one of 24 parts of speech.",
          "وسم كل كلمة بأحد أربعة وعشرين قسمًا نحويًا.",
-         _run_pos, pair_columns=("word", "tag")),
+         _run_pos, tag_kind="pos"),
     Task("structure", "Hadith structure", "بنية الحديث",
          "Split running text into hadith number, isnād, matn and heading.",
          "تقسيم النص إلى رقم الحديث والإسناد والمتن والعنوان.",
-         _run_structure, pair_columns=("segment", "label")),
+         _run_structure, tag_kind="structure"),
 )}
 
 
-def process(document: Document, task_key: str) -> Result:
+def relabel(result: Result, lang: str) -> Result:
+    """Return the same result with its tag names in another language.
+
+    Because `Unit.pairs` holds canonical codes, switching language is pure
+    string formatting - no model runs again. That is what lets the page offer
+    an instant English/Arabic toggle on a result that took a minute to
+    compute.
+    """
+    lang = labels.normalize(lang)
+    if lang == result.lang:
+        return result
+    task = TASKS[result.task]
+    units = result.units
+    if task.tag_kind:
+        units = [Unit(u.n, u.source,
+                      _format_pairs(task.tag_kind, u.pairs, lang)
+                      if u.pairs else u.output,
+                      u.pairs)
+                 for u in result.units]
+    return replace(result, units=units, lang=lang,
+                   task_label=task.label_ar if lang == "ar" else task.label)
+
+
+def process(document: Document, task_key: str,
+            lang: str = labels.DEFAULT_LANGUAGE) -> Result:
     """Run one task over every non-empty unit of `document`.
 
     Blank units are passed through untouched rather than sent to a model:
@@ -147,6 +178,7 @@ def process(document: Document, task_key: str) -> Result:
     if task is None:
         raise ValueError(f"unknown task '{task_key}'")
 
+    lang = labels.normalize(lang)
     started = time.perf_counter()
     deadline = started + settings.process_timeout_s
     units: list[Unit] = []
@@ -163,12 +195,17 @@ def process(document: Document, task_key: str) -> Result:
                 f"{len(document.units):,} units were not processed")
             break
         output, pairs = task.run(source)
-        units.append(Unit(i, source, output, list(pairs)))
+        pairs = list(pairs)
+        if task.tag_kind:
+            output = _format_pairs(task.tag_kind, pairs, lang)
+        units.append(Unit(i, source, output, pairs))
 
     # Keep the table rectangular if the timeout cut us short.
     if document.table is not None and len(units) < len(document.table.rows):
         document.table.rows = document.table.rows[:len(units)]
 
-    return Result(task=task.key, task_label=task.label, units=units,
-                  document=document, elapsed_s=time.perf_counter() - started,
-                  notes=notes + document.notes)
+    return Result(task=task.key,
+                  task_label=task.label_ar if lang == "ar" else task.label,
+                  units=units, document=document,
+                  elapsed_s=time.perf_counter() - started,
+                  notes=notes + document.notes, lang=lang)

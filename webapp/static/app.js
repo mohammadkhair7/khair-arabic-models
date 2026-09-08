@@ -20,6 +20,7 @@ const el = {
   meta: $('meta'), notes: $('notes'), downloads: $('download-buttons'),
   output: $('output'), showSource: $('show-source'), copy: $('copy'),
   previewNote: $('preview-note'),
+  langPick: $('lang-pick'), langButtons: $('lang-buttons'),
   donateWidget: $('donate-widget'), tiers: $('tiers'),
   fbName: $('fb-name'), fbEmail: $('fb-email'), fbMessage: $('fb-message'),
   fbWebsite: $('fb-website'), fbSend: $('fb-send'), fbStatus: $('fb-status'),
@@ -30,6 +31,10 @@ let config = null;
 let mode = 'paste';
 let task = 'tashkeel';
 let last = null;
+// Language the POS and structure tag names are shown in. The models emit
+// codes; this only picks which dictionary those codes are read through, so
+// changing it redraws the result without asking the server to run again.
+let lang = 'en';
 
 init();
 
@@ -40,6 +45,7 @@ async function init() {
     return setError(el.status, 'Could not reach the server. Is it still running?');
   }
   buildTasks();
+  buildLangs();
   buildHints();
   buildDonate();
   buildFeedback();
@@ -262,6 +268,7 @@ function onPick() {
 async function submit() {
   const body = new FormData();
   body.append('task', task);
+  body.append('lang', lang);
   if (mode === 'paste') {
     if (!el.text.value.trim()) return setError(el.status, 'Please paste some Arabic text first.');
     body.append('text', el.text.value);
@@ -297,6 +304,48 @@ function setError(node, message) {
   node.textContent = message;
 }
 
+/* ------------------------------------------------------- tag language */
+
+function buildLangs() {
+  el.langButtons.textContent = '';
+  for (const option of config.languages) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'lang' + (option.key === lang ? ' is-active' : '');
+    button.dataset.key = option.key;
+    button.textContent = option.label;
+    if (option.key === 'ar') { button.dir = 'rtl'; button.lang = 'ar'; }
+    button.addEventListener('click', () => setLang(option.key));
+    el.langButtons.append(button);
+  }
+}
+
+function setLang(next) {
+  if (next === lang) return;
+  lang = next;
+  for (const button of el.langButtons.querySelectorAll('button')) {
+    button.classList.toggle('is-active', button.dataset.key === lang);
+  }
+  // Redraw from the codes we already hold - no second inference run.
+  if (last) { drawMeta(last); drawOutput(last); drawDownloads(last); }
+}
+
+function labelFor(key) {
+  const found = config.languages.find((l) => l.key === key);
+  return found ? found.label : key;
+}
+
+/** Display name for one tag code, in the currently selected language. */
+function tagName(kind, code) {
+  const entry = (config.tag_sets[kind] || []).find((t) => t.code === code);
+  return entry ? entry[lang] || entry.code : code;
+}
+
+/** True when the running task produces tags that can be named. */
+function tagged(data) {
+  return Boolean(data.tag_kind);
+}
+
 /* ------------------------------------------------------------- results */
 
 function draw(data) {
@@ -313,8 +362,10 @@ function draw(data) {
 }
 
 function drawMeta(data) {
+  const spec = config.tasks.find((t) => t.key === data.task);
+  const title = spec && lang === 'ar' ? spec.label_ar : data.task_label;
   const rows = [
-    ['Task', data.task_label],
+    ['Task', title],
     ['Source', data.source],
     ['Units', data.total_units.toLocaleString()],
     ['Time', `${data.elapsed_s}s`],
@@ -351,7 +402,8 @@ function drawDownloads(data) {
     a.className = 'dl' + (fmt.available ? '' : ' is-off');
     a.textContent = fmt.label;
     if (fmt.available) {
-      a.href = `/api/download/${encodeURIComponent(data.token)}/${fmt.key}`;
+      a.href = `/api/download/${encodeURIComponent(data.token)}/${fmt.key}`
+        + `?lang=${encodeURIComponent(lang)}`;
       a.setAttribute('download', '');
     } else {
       a.title = 'Unavailable: the server has no Arabic font installed for PDF output.';
@@ -361,6 +413,7 @@ function drawDownloads(data) {
 }
 
 function drawOutput(data) {
+  el.langPick.classList.toggle('is-hidden', !tagged(data));
   el.output.textContent = '';
   if (data.is_table) return drawTable(data);
 
@@ -371,10 +424,20 @@ function drawOutput(data) {
       continue;
     }
     if (withSource) el.output.append(p('src', unit.source));
-    if (data.task === 'pos') el.output.append(pairsRow(unit));
-    else if (data.task === 'structure') el.output.append(segments(unit));
+    if (data.tag_kind === 'pos') el.output.append(pairsRow(unit));
+    else if (data.tag_kind === 'structure') el.output.append(segments(unit));
     else el.output.append(p('', unit.output));
   }
+}
+
+/** The unit's text in the selected language, rebuilt from the tag codes. */
+function unitText(data, unit) {
+  if (!tagged(data) || !unit.pairs.length) return unit.output;
+  if (data.tag_kind === 'pos') {
+    return unit.pairs.map(([w, c]) => `${w}/${tagName('pos', c)}`).join(' ');
+  }
+  return unit.pairs
+    .map(([c, chunk]) => `[${tagName('structure', c)}] ${chunk}`).join('\n');
 }
 
 function drawTable(data) {
@@ -386,7 +449,7 @@ function drawTable(data) {
   for (const unit of data.units) {
     const tr = document.createElement('tr');
     tr.append(cell('td', unit.source));
-    const out = cell('td', unit.output);
+    const out = cell('td', unitText(data, unit));
     out.className = 'out';
     tr.append(out);
     table.append(tr);
@@ -396,10 +459,15 @@ function drawTable(data) {
 
 function pairsRow(unit) {
   const wrap = div('');
-  for (const [word, tag] of unit.pairs) {
+  for (const [word, code] of unit.pairs) {
     const tok = document.createElement('span');
     tok.className = 'tok';
-    tok.append(span('w', word), span('t', tag));
+    const name = span('t', tagName('pos', code));
+    if (lang === 'ar') { name.dir = 'rtl'; name.lang = 'ar'; }
+    // The code stays reachable on hover, so a reader who wants the canonical
+    // CAMeL tag is one gesture away in either language.
+    name.title = code;
+    tok.append(span('w', word), name);
     wrap.append(tok);
   }
   return wrap;
@@ -407,10 +475,13 @@ function pairsRow(unit) {
 
 function segments(unit) {
   const wrap = div('');
-  for (const [label, chunk] of unit.pairs) {
+  for (const [code, chunk] of unit.pairs) {
     const row = div('seg');
-    row.append(span('lab lab-' + label.replace(/[^A-Z]/g, ''), label),
-      span('txt', chunk));
+    const name = span('lab lab-' + code.replace(/[^A-Z]/g, ''),
+      tagName('structure', code));
+    if (lang === 'ar') { name.dir = 'rtl'; name.lang = 'ar'; }
+    name.title = code;
+    row.append(name, span('txt', chunk));
     wrap.append(row);
   }
   return wrap;
@@ -419,7 +490,8 @@ function segments(unit) {
 async function copyOutput() {
   if (!last) return;
   try {
-    await navigator.clipboard.writeText(last.units.map((u) => u.output).join('\n'));
+    await navigator.clipboard.writeText(
+      last.units.map((u) => unitText(last, u)).join('\n'));
     el.copy.textContent = 'Copied';
     setTimeout(() => { el.copy.textContent = 'Copy text'; }, 1500);
   } catch {
