@@ -1,0 +1,52 @@
+# Hardened local/production run.
+#
+#     docker compose -f webapp/docker-compose.yml up --build
+#
+# Secrets are read from the shell environment or from an untracked
+# webapp/.env - never from this file. `${VAR:-}` means "empty if unset", so
+# nothing here ever needs to hold a credential.
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: webapp/Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"       # bind to loopback; put a TLS proxy in front
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-alarabia.chat}
+      # Stripe Payment Links: public URLs, no credential involved.
+      DONATE_MONTHLY_URL: ${DONATE_MONTHLY_URL:-}
+      DONATE_ONETIME_URL: ${DONATE_ONETIME_URL:-}
+      # SECRET. Supply it from the host environment or a Docker/Swarm secret.
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-info@hadith.chat}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:-info@hadith.chat}
+      # Scan uploads with the clamav sidecar below, and refuse them if it is down.
+      ARABICWEB_CLAMD_HOST: clamav
+      ARABICWEB_CLAMAV_REQUIRED: "1"
+    depends_on:
+      clamav:
+        condition: service_healthy
+
+    # --- isolation --------------------------------------------------------
+    read_only: true                 # nothing may be written to the image
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    cap_drop: [ALL]                 # the app needs no Linux capability at all
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256                 # a fork bomb in a parser goes nowhere
+    mem_limit: 4g
+    restart: unless-stopped
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s            # the signature database takes a while
+    mem_limit: 2g

@@ -190,6 +190,33 @@ def _shaper():
     return shape
 
 
+def wrap_words(text: str, fits) -> list[str]:
+    """Greedy line-break that preserves reading order.
+
+    This is the subtle part of right-to-left output. `get_display` reverses a
+    string into *visual* order, so handing a long reversed string to a
+    renderer that then wraps it puts the tail of the sentence on the first
+    physical line and the document reads backwards. Breaking the logical text
+    into lines first, and reversing each finished line separately, keeps the
+    paragraph in the order it was written.
+
+    `fits(candidate)` reports whether a candidate line still fits; a word
+    longer than a whole line is placed anyway rather than looping forever.
+    """
+    lines: list[str] = []
+    current: list[str] = []
+    for word in text.split():
+        trial = current + [word]
+        if not current or fits(" ".join(trial)):
+            current = trial
+        else:
+            lines.append(" ".join(current))
+            current = [word]
+    if current:
+        lines.append(" ".join(current))
+    return lines or [""]
+
+
 def as_pdf(result: Result) -> bytes:
     from fpdf import FPDF
 
@@ -206,23 +233,50 @@ def as_pdf(result: Result) -> bytes:
     pdf.add_font("arabic", "", str(font))
     pdf.set_font("arabic", size=12)
 
-    # fpdf2 shapes and reorders text itself when uharfbuzz is present, which
-    # is better than anything we can do by hand. Only fall back if it is not.
+    # fpdf2 shapes and reorders text itself when uharfbuzz is installed, and
+    # it does so *after* deciding line breaks - which is the only correct
+    # order. Without it we shape by hand and must break lines ourselves.
+    native_shaping = True
     shape = str
     try:
         pdf.set_text_shaping(True)
     except Exception:                       # noqa: BLE001 - any failure = fallback
+        native_shaping = False
         shape = _shaper()
+
+    # `multi_cell` insets text by `c_margin` on each side, so the width we
+    # measure against has to account for it. Get this wrong and the cell
+    # re-wraps a line we already wrapped - and because the string is in
+    # visual order by then, the overflow is the *start* of the sentence,
+    # which silently lands on the following line.
+    usable = pdf.w - pdf.l_margin - pdf.r_margin - 2 * pdf.c_margin - 0.5
+
+    def wrap(text: str) -> list[str]:
+        if native_shaping:
+            return [text]
+        return wrap_words(
+            text, lambda s: pdf.get_string_width(shape(s)) <= usable)
+
+    def rtl(height: float, text: str) -> None:
+        for chunk in wrap(text):
+            # new_x/new_y: multi_cell otherwise leaves the cursor at the right
+            # edge, and the next full-width cell computes a width of zero.
+            pdf.multi_cell(0, height, shape(chunk), align="R",
+                           new_x="LMARGIN", new_y="NEXT")
+
+    def ltr(height: float, text: str) -> None:
+        pdf.multi_cell(0, height, text, align="L",
+                       new_x="LMARGIN", new_y="NEXT")
 
     pdf.add_page()
     pdf.set_font_size(17)
-    pdf.multi_cell(0, 10, shape(result.task_label), align="R")
+    ltr(10, result.task_label)
     pdf.set_font_size(9)
     pdf.set_text_color(110)
     for key, value in _meta(result):
-        pdf.multi_cell(0, 5, shape(f"{value}  :{key}"), align="R")
+        ltr(5, f"{key}: {value}")
     for note in result.notes:
-        pdf.multi_cell(0, 5, shape(note), align="R")
+        ltr(5, note)
     pdf.ln(3)
     pdf.set_draw_color(200)
     pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
@@ -234,14 +288,14 @@ def as_pdf(result: Result) -> bytes:
         if not unit.output.strip():
             pdf.ln(3)
             continue
-        for line in unit.output.split("\n"):
-            pdf.multi_cell(0, 9, shape(line), align="R")
+        for paragraph in unit.output.split("\n"):
+            rtl(9, paragraph)
         pdf.ln(1)
 
     pdf.ln(6)
     pdf.set_font_size(7)
     pdf.set_text_color(130)
-    pdf.multi_cell(0, 4, shape(CREDIT), align="R")
+    ltr(4, CREDIT)
 
     return bytes(pdf.output())
 

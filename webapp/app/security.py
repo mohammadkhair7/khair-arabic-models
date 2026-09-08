@@ -180,7 +180,12 @@ def sniff(data: bytes, ext: str) -> None:
                 raise UnsafeUpload(
                     f"That {ext} file is really {human}. Only plain text is "
                     "accepted here.")
-        if b"\x00" in data[:4096]:
+        # A stray NUL is the cheapest tell that a "text" file is binary - but
+        # only for 8-bit encodings. UTF-16 and UTF-32 are full of NULs by
+        # design (every ASCII space is `20 00`), and Excel exports Arabic CSVs
+        # as UTF-16 all the time, so a BOM exempts the file from this check.
+        if not data.startswith((b"\xff\xfe", b"\xfe\xff")) \
+                and b"\x00" in data[:4096]:
             raise UnsafeUpload(
                 f"That {ext} file contains binary data, not text.")
 

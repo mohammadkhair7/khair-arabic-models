@@ -3,117 +3,250 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Khair Arabic Models — free Arabic text processing</title>
-<meta name="description" content="Free diacritization, part-of-speech tagging and hadith structure analysis for Arabic text.">
+<title>alarabia.chat — free Arabic text processing</title>
+<meta name="description" content="Free Arabic diacritization, part-of-speech tagging and hadith structure analysis. Open-source models from the International Computing Institute for Quran and Islamic Sciences.">
 <link rel="stylesheet" href="/static/app.css">
-<link rel="icon" href="data:,">
+<link rel="icon" href="/static/img/institute-logo.png">
 </head>
 <body>
 
-<header class="site">
-  <h1>Khair Arabic Models</h1>
-  <p class="site-ar" dir="rtl" lang="ar">نماذج خَيْر لمعالجة اللغة العربية</p>
-  <p class="tagline">
-    Free Arabic diacritization, part-of-speech tagging and hadith structure
-    analysis. Paste text or upload a file — nothing you send is written to disk.
-  </p>
-</header>
+<div class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="/">
+      <img class="brand-logo" src="/static/img/institute-logo.png"
+           alt="International Computing Institute for Quran and Islamic Sciences">
+      <img class="brand-name" src="/static/img/institute-name.png"
+           alt="المعهد العالمي لحوسبة القرآن والعلوم الإسلامية">
+    </a>
+    <span class="masthead-spacer"></span>
+    <div class="donate" id="donate-widget"></div>
+  </div>
+</div>
 
-<main>
+<div class="wrap">
 
-  <section class="card">
-    <h2><span class="step">1</span> Choose what to do
-      <span class="ar" dir="rtl" lang="ar">اختر العملية</span></h2>
-    <div id="tasks" class="tasks">
-      <p class="muted">Loading…</p>
-    </div>
-  </section>
+  <header class="hero">
+    <h1>alarabia.chat</h1>
+    <p class="hero-ar" dir="rtl" lang="ar">معالجة اللغة العربية بالذكاء الاصطناعي</p>
+    <p class="tagline">
+      Free Arabic diacritization, part-of-speech tagging and hadith structure
+      analysis. Paste text or upload a file — nothing you send is written to disk.
+    </p>
+  </header>
 
-  <section class="card">
-    <h2><span class="step">2</span> Give it some text
-      <span class="ar" dir="rtl" lang="ar">أدخل النص</span></h2>
-
-    <div class="tabs" role="tablist">
-      <button type="button" id="tab-paste" class="tab is-active" role="tab"
-              aria-selected="true" aria-controls="pane-paste">
-        Paste text <span class="ar" dir="rtl" lang="ar">لصق نص</span>
-      </button>
-      <button type="button" id="tab-file" class="tab" role="tab"
-              aria-selected="false" aria-controls="pane-file">
-        Upload a file <span class="ar" dir="rtl" lang="ar">رفع ملف</span>
-      </button>
-    </div>
-
-    <div id="pane-paste" class="pane" role="tabpanel">
-      <label class="visually-hidden" for="text">Arabic text</label>
-      <textarea id="text" dir="rtl" lang="ar" rows="7" spellcheck="false"
-                placeholder="حدثنا قتيبة بن سعيد قال حدثنا الليث عن نافع عن ابن عمر"></textarea>
-      <p class="hint" id="text-hint"></p>
-    </div>
-
-    <div id="pane-file" class="pane is-hidden" role="tabpanel">
-      <label class="drop" id="drop" for="file">
-        <input type="file" id="file" class="visually-hidden">
-        <strong id="drop-label">Drag a file here, or click to choose one</strong>
-        <span class="hint" id="file-hint"></span>
-      </label>
-      <div class="field is-hidden" id="column-row">
-        <label for="column">Which column holds the Arabic text?</label>
-        <input type="text" id="column" autocomplete="off"
-               placeholder="leave blank to detect it automatically">
-        <span class="hint">A column name, or a number like <code>3</code>.</span>
-      </div>
-    </div>
-  </section>
-
-  <section class="card run-card">
-    <button type="button" id="run" class="run">
-      Run <span class="ar" dir="rtl" lang="ar">شغّل</span>
+  <nav class="nav" id="nav">
+    <button type="button" class="is-active" data-page="process">
+      Process text <span class="ar-inline" dir="rtl" lang="ar">معالجة النص</span>
     </button>
-    <p class="status" id="status" role="status" aria-live="polite"></p>
-  </section>
+    <button type="button" data-page="donate">
+      Donate <span class="ar-inline" dir="rtl" lang="ar">تبرّع</span>
+    </button>
+    <button type="button" data-page="feedback">
+      Feedback <span class="ar-inline" dir="rtl" lang="ar">ملاحظاتكم</span>
+    </button>
+    <button type="button" data-page="about">
+      About <span class="ar-inline" dir="rtl" lang="ar">عن المشروع</span>
+    </button>
+  </nav>
 
-  <section class="card is-hidden" id="results">
-    <h2><span class="step">3</span> Result
-      <span class="ar" dir="rtl" lang="ar">النتيجة</span></h2>
+  <!-- ================================================== process ======= -->
+  <main class="page" id="page-process">
 
-    <dl class="meta" id="meta"></dl>
-    <ul class="notes is-hidden" id="notes"></ul>
+    <section class="card">
+      <h2><span class="step">1</span> Choose what to do
+        <span class="ar" dir="rtl" lang="ar">اختر العملية</span></h2>
+      <div id="tasks" class="tasks"><p class="muted">Loading…</p></div>
+    </section>
 
-    <div class="toolbar">
-      <div class="downloads">
-        <span class="toolbar-label">Download as</span>
-        <span id="download-buttons"></span>
+    <section class="card">
+      <h2><span class="step">2</span> Give it some text
+        <span class="ar" dir="rtl" lang="ar">أدخل النص</span></h2>
+
+      <div class="tabs" role="tablist">
+        <button type="button" id="tab-paste" class="tab is-active" role="tab"
+                aria-selected="true" aria-controls="pane-paste">
+          Paste text <span class="ar" dir="rtl" lang="ar">لصق نص</span>
+        </button>
+        <button type="button" id="tab-file" class="tab" role="tab"
+                aria-selected="false" aria-controls="pane-file">
+          Upload a file <span class="ar" dir="rtl" lang="ar">رفع ملف</span>
+        </button>
       </div>
-      <div class="toggles">
-        <label class="check"><input type="checkbox" id="show-source">
-          Show the original alongside</label>
-        <button type="button" class="ghost" id="copy">Copy text</button>
+
+      <div id="pane-paste" role="tabpanel">
+        <label class="visually-hidden" for="text">Arabic text</label>
+        <textarea id="text" dir="rtl" lang="ar" rows="7" spellcheck="false"
+                  placeholder="حدثنا قتيبة بن سعيد قال حدثنا الليث عن نافع عن ابن عمر"></textarea>
+        <p class="hint" id="text-hint"></p>
       </div>
-    </div>
 
-    <div class="output" id="output" dir="rtl" lang="ar"></div>
-    <p class="hint" id="preview-note"></p>
-  </section>
+      <div id="pane-file" class="is-hidden" role="tabpanel">
+        <label class="drop" id="drop" for="file">
+          <input type="file" id="file" class="visually-hidden">
+          <strong id="drop-label">Drag a file here, or click to choose one</strong>
+          <span class="hint" id="file-hint"></span>
+        </label>
+        <div class="field is-hidden" id="column-row">
+          <label for="column">Which column holds the Arabic text?</label>
+          <input type="text" id="column" autocomplete="off"
+                 placeholder="leave blank to detect it automatically">
+          <span class="hint">A column name, or a number like <code>3</code>.</span>
+        </div>
+      </div>
+    </section>
 
-</main>
+    <section class="card run-card">
+      <button type="button" id="run" class="run">
+        Run <span class="ar" dir="rtl" lang="ar">شغّل</span>
+      </button>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card is-hidden" id="results">
+      <h2><span class="step">3</span> Result
+        <span class="ar" dir="rtl" lang="ar">النتيجة</span></h2>
+      <dl class="meta" id="meta"></dl>
+      <ul class="notes is-hidden" id="notes"></ul>
+      <div class="toolbar">
+        <div class="downloads">
+          <span class="toolbar-label">Download as</span>
+          <span id="download-buttons"></span>
+        </div>
+        <div class="toggles">
+          <label class="check"><input type="checkbox" id="show-source">
+            Show the original alongside</label>
+          <button type="button" class="ghost" id="copy">Copy text</button>
+        </div>
+      </div>
+      <div class="output" id="output" dir="rtl" lang="ar"></div>
+      <p class="hint" id="preview-note"></p>
+    </section>
+  </main>
+
+  <!-- =================================================== donate ======= -->
+  <main class="page is-hidden" id="page-donate">
+    <section class="card prose">
+      <h2>Support this work <span class="ar" dir="rtl" lang="ar">ادعم هذا العمل</span></h2>
+      <p class="lede">
+        alarabia.chat is free to use, with no account, no advertising and no
+        limits beyond what keeps the server healthy. Donations to the
+        International Computing Institute for Quran and Islamic Sciences pay
+        for the servers and let the models stay open source.
+      </p>
+      <p class="rtl">
+        موقع alarabia.chat مجاني بالكامل، دون حساب ولا إعلانات. تبرعاتكم للمعهد
+        العالمي لحوسبة القرآن والعلوم الإسلامية تغطي تكاليف الخوادم وتُبقي
+        النماذج مفتوحة المصدر للجميع.
+      </p>
+      <div class="tiers" id="tiers"></div>
+      <p class="hint">
+        Payments are handled entirely by <strong>Stripe</strong> on their own
+        secure pages. This site never sees or stores your card details.
+      </p>
+    </section>
+  </main>
+
+  <!-- ================================================= feedback ======= -->
+  <main class="page is-hidden" id="page-feedback">
+    <section class="card prose">
+      <h2>Send us feedback <span class="ar" dir="rtl" lang="ar">أرسل ملاحظاتك</span></h2>
+      <p class="lede">
+        Found a mistake in the diacritics? Want a feature, a new file format,
+        or a model for a different kind of text? Tell the developers directly.
+      </p>
+      <p class="rtl">
+        وجدت خطأً في التشكيل؟ أو لديك اقتراح لميزة جديدة؟ راسل المطوّرين مباشرة.
+      </p>
+
+      <div id="feedback-off" class="status is-error is-hidden"></div>
+
+      <div id="feedback-form">
+        <div class="field-row">
+          <div class="field">
+            <label for="fb-name">Your name <span class="ar-inline" dir="rtl" lang="ar">الاسم</span></label>
+            <input type="text" id="fb-name" maxlength="120" autocomplete="name">
+          </div>
+          <div class="field">
+            <label for="fb-email">Your email <span class="ar-inline" dir="rtl" lang="ar">البريد الإلكتروني</span></label>
+            <input type="email" id="fb-email" maxlength="200" autocomplete="email">
+          </div>
+        </div>
+        <div class="field">
+          <label for="fb-message">Message <span class="ar-inline" dir="rtl" lang="ar">الرسالة</span></label>
+          <textarea id="fb-message" class="plain" rows="6" maxlength="5000"></textarea>
+        </div>
+        <!-- Honeypot: invisible to people, irresistible to bots. -->
+        <div class="visually-hidden" aria-hidden="true">
+          <label for="fb-website">Leave this field empty</label>
+          <input type="text" id="fb-website" tabindex="-1" autocomplete="off">
+        </div>
+        <div class="field run-card">
+          <button type="button" id="fb-send" class="run">
+            Send <span class="ar" dir="rtl" lang="ar">إرسال</span>
+          </button>
+          <p class="status" id="fb-status" role="status" aria-live="polite"></p>
+        </div>
+        <p class="hint" id="fb-hint"></p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================================================== about ======= -->
+  <main class="page is-hidden" id="page-about">
+    <section class="card prose">
+      <h2>About <span class="ar" dir="rtl" lang="ar">عن المشروع</span></h2>
+      <p class="lede">
+        alarabia.chat runs four compact neural models for classical Arabic —
+        diacritization, part-of-speech tagging and text-structure segmentation —
+        trained without a single manually labelled example.
+      </p>
+
+      <h3>The models are open source <span class="badge">Apache 2.0</span></h3>
+      <p>
+        Every model, the code that trained it, and the data it learned from are
+        published and free to download:
+        <a href="https://github.com/qurancomp/khair-arabic-models"
+           rel="noopener noreferrer" target="_blank">github.com/qurancomp/khair-arabic-models</a>.
+        They are small enough to run on a CPU, so you can host this yourself.
+      </p>
+
+      <h3>Your text is not kept</h3>
+      <ul>
+        <li>Uploads are processed <strong>in memory</strong> and never written to disk.</li>
+        <li>Results are held only long enough for you to download them, then discarded.</li>
+        <li>No account, no tracking, no analytics, no third-party scripts.</li>
+        <li>Every upload is type-checked, size-capped and screened for malicious content before it is opened.</li>
+      </ul>
+
+      <h3>Credits</h3>
+      <p>
+        Developed by <strong>Mohammad Mohammad Khair, MS, EMBA</strong>,
+        <a href="https://qurancomputing.org" rel="noopener noreferrer" target="_blank">International
+        Computing Institute for Quran and Islamic Sciences</a>, as part of the
+        <a href="https://hadith.chat" rel="noopener noreferrer" target="_blank">Hadith.chat</a> project.
+      </p>
+      <p class="rtl">
+        إعداد المهندس محمد محمد خير — المعهد العالمي لحوسبة القرآن والعلوم
+        الإسلامية، ضمن مشروع Hadith.chat. النماذج مفتوحة المصدر برخصة أباتشي ٢٫٠.
+      </p>
+    </section>
+  </main>
+
+</div>
 
 <footer class="site-footer">
+  <img class="footer-logo" src="/static/img/institute-name.png"
+       alt="المعهد العالمي لحوسبة القرآن والعلوم الإسلامية">
   <p>
     Developed by <strong>Mohammad Mohammad Khair, MS, EMBA</strong> —
-    <a href="https://QuranComputing.org" rel="noopener noreferrer" target="_blank">International
-    Computing Institute for Quran and Islamic Sciences</a>,
-    as part of the <a href="https://Hadith.chat" rel="noopener noreferrer" target="_blank">Hadith.chat</a>
-    project.
+    <a href="https://qurancomputing.org" rel="noopener noreferrer" target="_blank">International
+    Computing Institute for Quran and Islamic Sciences</a>
   </p>
-  <p dir="rtl" lang="ar">
-    إعداد المهندس محمد محمد خير — المعهد العالمي لحوسبة القرآن والعلوم الإسلامية،
-    ضمن مشروع Hadith.chat.
-  </p>
-  <p class="muted">
-    Open source under the Apache License 2.0 —
-    <a href="https://github.com/mohammadkhair7/khair-arabic-models"
-       rel="noopener noreferrer" target="_blank">github.com/mohammadkhair7/khair-arabic-models</a>
+  <p dir="rtl" lang="ar">المهندس محمد محمد خير — المعهد العالمي لحوسبة القرآن والعلوم الإسلامية</p>
+  <p>
+    Part of the <a href="https://hadith.chat" rel="noopener noreferrer" target="_blank">Hadith.chat</a>
+    project · Models open source under Apache 2.0 ·
+    <a href="https://github.com/qurancomp/khair-arabic-models" rel="noopener noreferrer" target="_blank">source &amp; downloads</a>
   </p>
 </footer>
 

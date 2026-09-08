@@ -1,0 +1,22 @@
+# Web layer only. The models themselves come from the parent package
+# (`pip install -e ..`), which pulls in torch.
+
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9      # multipart/form-data uploads
+httpx>=0.27                  # SendGrid call, and the test client
+
+# input formats
+openpyxl>=3.1                # .xlsx
+python-docx>=1.1             # .docx
+olefile>=0.47                # .doc (legacy OLE compound files)
+
+# output formats
+fpdf2>=2.7                   # PDF
+arabic-reshaper>=3.0         # letter joining for PDF
+python-bidi>=0.4             # right-to-left reordering for PDF
+
+# Optional but strongly recommended: with uharfbuzz installed, fpdf2 shapes
+# and line-breaks Arabic itself, which is more correct than the
+# reshaper + bidi fallback for mixed-direction text.
+uharfbuzz>=0.39

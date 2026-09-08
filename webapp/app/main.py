@@ -15,6 +15,7 @@ import logging
 import secrets
 import time
 from collections import OrderedDict, defaultdict, deque
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
@@ -23,8 +24,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.formparsers import MultiPartParser
 
-from . import extract, process, render, security
+from . import extract, integrations, process, render, security
 from .config import settings
+from .integrations import FeedbackError
 from .security import UnsafeUpload
 
 log = logging.getLogger("arabicweb")
@@ -44,8 +46,17 @@ for _attr in ("spool_max_size", "max_part_size", "max_file_size"):
 # paragraphs to show someone their result.
 PREVIEW_UNITS = 300
 
-app = FastAPI(title="Khair Arabic Models", docs_url=None, redoc_url=None,
-              openapi_url=None)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if settings.preload:
+        await run_in_threadpool(process.preload)
+    yield
+
+
+# The interactive docs are switched off: they are a map of the attack surface
+# and this service has no API users who need them.
+app = FastAPI(title="alarabia.chat", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 
 
 # --------------------------------------------------------------------------
@@ -128,12 +139,6 @@ async def _rejected(_request: Request, exc: UnsafeUpload):
 # routes
 # --------------------------------------------------------------------------
 
-@app.on_event("startup")
-async def _startup() -> None:
-    if settings.preload:
-        await run_in_threadpool(process.preload)
-
-
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
@@ -167,7 +172,44 @@ async def config() -> dict:
             "result_ttl_minutes": settings.result_ttl_s // 60,
         },
         "virus_scanner": bool(settings.clamd_host),
+        # Stripe Payment Links are public URLs, safe to hand to the browser.
+        "donate": integrations.donation_options(),
+        # A boolean, deliberately: the API key itself is never serialised.
+        "feedback": integrations.feedback_available(),
+        "contact_email": integrations.CONTACT_EMAIL,
+        "site_domain": integrations.SITE_DOMAIN,
     }
+
+
+@app.post("/api/feedback")
+async def feedback(
+    request: Request,
+    name: str = Form(""),
+    email: str = Form(""),
+    message: str = Form(""),
+    website: str = Form(""),
+):
+    """Relay a visitor message to the institute mailbox.
+
+    `website` is a honeypot: the field is hidden from people, so anything
+    that fills it in is a bot. We answer 200 rather than an error so the
+    bot records a success and does not come back to probe for the real
+    validation rules.
+    """
+    if website.strip():
+        return {"ok": True}
+
+    client = request.client.host if request.client else "unknown"
+    if not integrations.rate_ok(client):
+        raise HTTPException(429, "Too many messages — please try again later.")
+    if not name.strip():
+        raise HTTPException(400, "Please tell us your name.")
+
+    try:
+        await run_in_threadpool(integrations.send_feedback, name, email, message)
+    except FeedbackError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True}
 
 
 @app.post("/api/process")
