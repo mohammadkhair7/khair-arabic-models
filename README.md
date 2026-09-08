@@ -12,6 +12,10 @@ vocalized, so stripping the diacritics off a page yields a perfectly aligned
 (input, target) pair for free. Rule-based parsers and an existing morphological
 analyzer supply the other two label sets. Full method: [`docs/PAPER.md`](docs/PAPER.md).
 
+**Try them first, install later.** All four models run on any Arabic text at
+**[alarabia.chat](https://alarabia.chat)** — the free test application for this
+repository, no account needed. Its source is in [`webapp/`](webapp).
+
 ---
 
 ## The four models

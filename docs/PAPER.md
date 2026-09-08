@@ -57,7 +57,9 @@ corpus-as-labeler recipe can be reproduced for other classical-text digital
 libraries. All four checkpoints, the code that trained them, the datasets
 they were trained from, and a web application for running them are released
 as open source under the Apache License 2.0 at
-**<https://github.com/qurancomp/khair-arabic-models>**.
+**<https://github.com/qurancomp/khair-arabic-models>**. A public test
+application where the four models can be tried on any Arabic text, without
+installing anything, runs at **<https://alarabia.chat>**.
 
 **Keywords:** hadith, classical Arabic, sequence labeling, diacritization,
 knowledge distillation, weak supervision, BiLSTM, digital libraries.
@@ -1134,7 +1136,7 @@ lockstep.
 | **Training and inference code** | [`src/arabicmodels/`](../src/arabicmodels) — one CLI, a three-class Python API |
 | **The datasets** (§4.6) | [`data/`](../data) — the exact rows the shipped checkpoints were trained on |
 | **Dataset builders** | [`scripts/build_datasets.py`](../scripts/build_datasets.py) — rebuilds all three label sets from any plain-text corpus |
-| **The web application** | [`webapp/`](../webapp) — the source of alarabia.chat |
+| **The web application** | [`webapp/`](../webapp) — the source of the test application at [alarabia.chat](https://alarabia.chat) |
 | **Documentation** | [User guide](USER_GUIDE.md) ([بالعربية](USER_GUIDE.ar.md)), [model cards](MODEL_CARDS.md), [data](DATA.md), [training](TRAINING.md) |
 
 ```bash
@@ -1145,13 +1147,20 @@ pip install -e .
 arabicmodels info                    # confirm what you have
 ```
 
-### The web application
+### The web application: a public test bench
 
-[`webapp/`](../webapp) is the source of the public inference service at
-**alarabia.chat**. It exposes all four models through a browser with no
-account and no cost: text can be pasted directly or uploaded as `.txt`,
-`.csv`, `.xlsx`, `.doc` or `.docx`, and results come back as plain text, CSV,
-Markdown or a right-to-left typeset PDF. It is a FastAPI application with a
+The models can be tried without installing anything at
+
+> ### <https://alarabia.chat>
+
+This is the reference test application for the four checkpoints, and
+[`webapp/`](../webapp) is its source. It exposes every model through a browser
+with no account and no cost: text can be pasted directly or uploaded as
+`.txt`, `.csv`, `.xlsx`, `.doc` or `.docx`, and results come back as plain
+text, CSV, Markdown or a right-to-left typeset PDF. Part-of-speech and
+structure labels can be displayed in either English or Arabic, and every
+export carries the canonical tag code alongside the displayed name. It is a
+FastAPI application with a
 dependency-free front end, runs on CPU, and ships with a hardened container
 definition, so an institution that cannot send its texts to a third party can
 host the whole thing itself:
