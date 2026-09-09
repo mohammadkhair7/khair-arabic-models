@@ -28,7 +28,13 @@ RUN pip install --no-cache-dir -r /tmp/webapp-requirements.txt
 
 COPY pyproject.toml README.md LICENSE NOTICE /app/
 COPY src/ /app/src/
-RUN pip install --no-cache-dir --no-deps -e .
+# --no-deps keeps pip from pulling the CUDA torch build over the CPU wheel
+# above. The cost is that the package's own dependencies are NOT installed,
+# so every one of them must be named in webapp/requirements.txt. Importing
+# the package here turns a forgotten dependency into a failed build instead
+# of a container that starts cleanly and dies on the first model load.
+RUN pip install --no-cache-dir --no-deps -e . \
+ && python -c "import arabicmodels"
 
 COPY models/ /app/models/
 COPY webapp/ /app/webapp/

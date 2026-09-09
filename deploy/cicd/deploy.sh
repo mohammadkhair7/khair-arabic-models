@@ -70,6 +70,14 @@ source "$CONF"
 host_of() { echo "${1#http*://}" | sed 's#/.*$##'; }
 
 install -d -m 700 "$RUNDIR"
+
+# One deploy of this app at a time. The poll timer and a hand-run --force can
+# otherwise overlap, and they collide on the container names: whichever loses
+# the race dies on "container name is already in use" partway through, leaving
+# the app half-recreated. Wait rather than exit, so a manual --force queues
+# behind a timer run instead of being silently dropped.
+exec 9>"$RUNDIR/${APP_NAME}.lock"
+flock 9
 SECRETS_ENV="$(mktemp "$RUNDIR/${APP_NAME}.secrets.XXXX")"
 MERGED_ENV="$(mktemp "$RUNDIR/${APP_NAME}.merged.XXXX")"
 chmod 600 "$SECRETS_ENV" "$MERGED_ENV"

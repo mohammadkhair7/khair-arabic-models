@@ -1,6 +1,13 @@
 # Web layer only. The models themselves come from the parent package
 # (`pip install -e ..`), which pulls in torch.
 
+# ...except in the container, where the parent package is installed with
+# --no-deps so that pip cannot replace the CPU-only torch wheel with the
+# 2 GB CUDA build from PyPI. That also drops numpy, which arabicmodels
+# imports at module scope, so it has to be named here or the image builds,
+# starts, and dies on the first model load with ModuleNotFoundError.
+numpy>=1.24
+
 fastapi>=0.110
 uvicorn[standard]>=0.27
 python-multipart>=0.0.9      # multipart/form-data uploads
