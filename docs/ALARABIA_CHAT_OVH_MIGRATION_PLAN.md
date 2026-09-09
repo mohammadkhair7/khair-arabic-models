@@ -1,10 +1,15 @@
 # alarabia.chat — OVH deployment and migration plan
 
-Status: **deployed and healthy on OVH Server A, waiting on DNS.** The container
-is built, serving, and reachable through the shared edge Caddy by hostname; all
-25 smoke-test checks pass. The one remaining step is manual: point the
-`alarabia.chat` A-records at the server in Namecheap ([§6](#6-namecheap-dns-cutover-manual-step)),
-after which Caddy issues the certificate and the site is public.
+Status: **live at https://alarabia.chat.** DNS is cut over, Let's Encrypt has
+issued certificates for both the apex and `www`, `www` redirects to the apex,
+and all smoke-test checks pass — including the models answering real requests
+over TLS. The co-hosted neighbours were unaffected throughout.
+
+Getting the certificate needed one manual step beyond the DNS change, and it
+will need it again on the QC move: Caddy had already spent its issuance attempt
+while the records still pointed at Namecheap's parking IP, so it was in ACME
+backoff and correcting DNS did not by itself get it out.
+[§6.2](#62-you-will-need-a-forced-reload-after-the-cutover) has the one command.
 
 This document is both the record of how alarabia.chat is deployed today and the
 runbook for moving it to the planned dedicated server **QC**. The organising
@@ -125,7 +130,7 @@ deploy/
     ├── host.env.example      template for the host-specific file
     ├── bootstrap-alarabia.sh one-shot onboarding of a new host (idempotent)
     ├── env_to_okms.ps1       loads the deploy secrets from a local .env
-    ├── smoke-test.sh         post-deploy verification (25 checks)
+    ├── smoke-test.sh         post-deploy verification (27 checks)
     ├── status.sh             containers, weights, CI/CD, edge, DNS and TLS state
     └── dns_survey.sh         authoritative DNS check before/after cutover
 ```
@@ -380,6 +385,19 @@ fetched and rebuilt on every deploy.
 
 ## 6. Namecheap DNS cutover (manual step)
 
+**Done.** Kept here as the record of what was changed and as the recipe for the
+QC move. The zone now reads, straight from `dns1.registrar-servers.com`:
+
+```
+alarabia.chat.       60 IN A   148.113.226.229
+www.alarabia.chat.   60 IN A   148.113.226.229
+alarabia.chat.     1800 IN MX  10/10/10/15/20 eforward1-5.registrar-servers.com.
+alarabia.chat.     1800 IN TXT "v=spf1 include:spf.efwd.registrar-servers.com ~all"
+```
+
+Both A records are correct and the mail records survived the edit, which is the
+whole of what this step had to achieve.
+
 `alarabia.chat` is on Namecheap BasicDNS. **The nameservers are already correct
 and must not be changed** — the domain is registered at Namecheap and delegated
 to Namecheap's own DNS, which is exactly what the other `.chat` sites use:
@@ -484,6 +502,33 @@ any subject lacking a certificate. This is safe for the neighbours: their
 certificates already exist in storage and are simply reloaded, so nothing is
 re-issued and no ACME quota is spent on them, and the reload is graceful, so no
 listener drops and in-flight requests finish.
+
+This is exactly how it played out. Both certificates were issued within four
+seconds of the forced reload — Let's Encrypt fetched the challenge from eight
+validation vantage points, every one of them served by the edge, and no fallback
+to ZeroSSL was needed. The five co-hosted sites answered `200` throughout.
+
+**The symptom points at the wrong thing, so check the certificate first.** Once
+DNS was correct the site was still dark, which reads as "DNS hasn't propagated"
+— but it had, in under a minute, because the records carry a 60-second TTL. Two
+things sustain the illusion. The browser's `ERR_SSL_PROTOCOL_ERROR` says nothing
+about certificates. And the newest ACME lines in the Caddy log still name the
+*parking* addresses (`192.64.119.8` for the apex, `104.219.250.36` and
+`2.59.170.19` for `www`), which looks like a live DNS fault but is simply the
+last attempt Caddy made, frozen at the moment it entered backoff and stopped
+retrying. Read the timestamps before reading the content. The quick
+discrimination is one query and one listing:
+
+```bash
+# What the registrar's zone actually holds (not a cached recursive answer)
+sudo /opt/alarabia/src/deploy/ovh/dns_survey.sh alarabia.chat
+
+# Whether a certificate exists at all
+sudo docker exec edge-caddy \
+     find /data/caddy/certificates -iname '*alarabia*' -name '*.crt'
+```
+
+Correct records plus no `.crt` means backoff, not DNS: force the reload.
 
 Related trap seen on the tajweed cutover and worth expecting here:
 **negative DNS caching.** A workstation can keep returning NXDOMAIN for `www`
@@ -700,9 +745,6 @@ protect: raise `ALARABIA_APP_MEM` / `_CPUS`, and drop `oom_score_adj` from
 
 ## 9. Open items
 
-- **`www` has never resolved.** The site block is in place and the smoke test
-  confirms the hostname matches it, but until the `www` A record exists the
-  redirect cannot be exercised end to end. Verify it after the cutover.
 - **Sender domain.** `SENDGRID_FROM_EMAIL` and `CONTACT_EMAIL` are
   `info@hadith.chat`, inherited from the sibling project, so feedback from
   alarabia.chat arrives in the hadith.chat inbox and is sent from a hadith.chat
@@ -710,14 +752,20 @@ protect: raise `ALARABIA_APP_MEM` / `_CPUS`, and drop `oom_score_adj` from
   subject line so the mail is attributable. Moving to an `@alarabia.chat` sender
   needs a verified sender on the SendGrid account first, and the domain currently
   has only Namecheap email forwarding.
-- **No uptime monitoring.** Server A runs Prometheus, Alertmanager, Grafana and a
-  blackbox exporter, but their scrape config covers the Kalimat fleet only —
-  `kalimat.chat`, the LiveKit SFU, Patroni and HAProxy on servers B/C. None of
-  the co-hosted `.chat` apps are probed, so alarabia is no worse off than
-  quran.chat, hadith.chat or tajweed.chat, but nothing will page if it goes down.
-  Adding a `blackbox-http` target for `https://alarabia.chat/api/health` is cheap;
-  doing it for one app and not its peers would be the odd choice, so it is a
-  fleet-level decision rather than an alarabia one.
+- **Nothing will page.** alarabia.chat now has a tab in the fleet's ops dashboard
+  (`docs/ops/platform_monitor.py` in the Webcast repo, served on
+  `localhost:8899`), which probes `https://alarabia.chat/api/health`, shows both
+  containers, the deploy timer's last exit and the deployed commit, alongside the
+  other nine apps. That is *observation*, not alerting: it only tells you
+  anything while someone is looking at it.
+
+  Actual alerting is still absent. Server A runs Prometheus, Alertmanager,
+  Grafana and a blackbox exporter, but their scrape config covers the Kalimat
+  fleet only — `kalimat.chat`, the LiveKit SFU, Patroni and HAProxy on servers
+  B/C. None of the co-hosted `.chat` apps are probed, so alarabia is no worse off
+  than quran.chat, hadith.chat or tajweed.chat. Adding a `blackbox-http` target
+  for the health endpoint is cheap; doing it for one app and not its peers would
+  be the odd choice, so it is a fleet-level decision rather than an alarabia one.
 - **IPv6.** The host has an IPv6 address but the edge is IPv4-only in practice.
   Adding AAAA records fleet-wide would need the edge verified on IPv6 first.
 - **ClamAV memory.** The scanner sits at 952 MB of its 2 GB ceiling with the
