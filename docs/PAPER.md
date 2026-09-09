@@ -1073,25 +1073,40 @@ the deployed models can help prioritize through their confidences.
    overlap. The reported metrics do not measure multi-unit pages or block
    edges. Concatenating consecutive units into training sequences is a cheap
    remedy planned for the next version.
-3. **Teacher-relative POS.** Agreement is with a context-free, MSA-database
+3. **A vocalization shortcut in the structure model.** The training pages set
+   كتاب / باب titles with full diacritics and the running text without them,
+   so `HEADING` is almost perfectly predicted by the presence of marks, and
+   the model learned that instead of the words. Presented with a vocalized
+   isnād it returns `HEADING` throughout; vowelling a correct `ISNAD` unit
+   incrementally, the labels survive until roughly a third of the characters
+   are marks and then flip as a block. Inference strips the marks before
+   encoding, which restores the training distribution and the correct
+   segmentation, but the underlying feature is still unavailable to the model.
+   The test split shares the confound — it is unvocalized throughout — so the
+   reported structure figures neither capture nor contradict this: a held-out
+   set cannot expose a shortcut its own distribution also takes. Stripping
+   marks in the label preparation and retraining would force the distinction
+   to be learned from the tokens, and is the natural companion to the
+   concatenation remedy in item 2.
+4. **Teacher-relative POS.** Agreement is with a context-free, MSA-database
    teacher whose backoff labels unknown words as proper nouns; the student's
    absolute accuracy on classical Arabic is unknown.
-4. **Selective vocalization.** DER is computed on selectively vocalized
+5. **Selective vocalization.** DER is computed on selectively vocalized
    references; DER(all) and DER(marked) bracket but do not pin down the true
    error. Fully vocalized subsets would enable a stricter evaluation.
-5. **Near-duplicate leakage.** Splits are hashed on window text (tashkīl) or
+6. **Near-duplicate leakage.** Splits are hashed on window text (tashkīl) or
    passage id (structure, POS). Identical strings cannot straddle splits,
    but the same hadith appears in several collections with small wording and
    vocalization differences, so near-duplicates can, which may make all test
    figures slightly optimistic.
-6. **Context discontinuity in the merge.** At annotation time the
+7. **Context discontinuity in the merge.** At annotation time the
    diacritizer sees only the *bare* words of a passage concatenated, skipping
    already-vocalized words; where those are frequent the context is
    discontinuous, a small mismatch with training that could be removed by
    passing the full bare text and merging afterwards.
-7. **Single runs.** All results are single-seed; variance across seeds was
+8. **Single runs.** All results are single-seed; variance across seeds was
    not measured, though the ablation shared data, splits and budget.
-8. **Class inventory.** The superscript alif is not predicted (§2.2).
+9. **Class inventory.** The superscript alif is not predicted (§2.2).
 
 ## 11. Future Work
 

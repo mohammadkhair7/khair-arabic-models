@@ -20,11 +20,26 @@ _HAMZA_FORMS = re.compile(r"[\u0624\u0626]")              # ؤ ئ -> ء
 _WS = re.compile(r"\s+")
 
 
+def strip_diacritics(text: str) -> str:
+    """Remove diacritics and taṭwīl, changing nothing else.
+
+    The first half of `normalize_arabic`, on its own. The letter skeleton,
+    the hamza carriers, tāʾ marbūṭa and all punctuation survive, so the result
+    is still the raw surface form the neural models are trained to read — only
+    unvowelled. `normalize_arabic` is the wrong tool for that job: its
+    orthographic folding rewrites letters the character encoders rely on.
+
+    Diacritics never stand alone, so this never changes a word count and a
+    per-word labeling stays aligned with the text it came from.
+    """
+    return _DIACRITICS.sub("", text or "")
+
+
 def normalize_arabic(text: str) -> str:
     """Fold orthographic variants and collapse whitespace."""
     if not text:
         return ""
-    t = _DIACRITICS.sub("", text)
+    t = strip_diacritics(text)
     t = _ALEF_FORMS.sub("\u0627", t)
     t = t.replace(_TA_MARBUTA, "\u0647")
     t = t.replace(_ALEF_MAQSURA, "\u064A")

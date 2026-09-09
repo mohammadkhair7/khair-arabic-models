@@ -9,13 +9,19 @@ import pytest
 
 from arabicmodels import (Diacritizer, PosTagger, StructureTagger, apply_marks,
                           has_tashkeel, normalize_arabic, parse_isnad,
-                          split_marks, whitespace_tokenize)
+                          split_marks, strip_diacritics, whitespace_tokenize)
 from arabicmodels.common import MODELS_DIR, split_of
 
 HADITH = ("حدثنا عبد الله بن يوسف قال أخبرنا مالك عن نافع عن عبد الله بن عمر "
           "أن رسول الله صلى الله عليه وسلم قال : إنما الأعمال بالنيات")
 UNIT = ("1248 - حدثنا محمد بن بشار قال حدثنا يحيى عن عبيد الله قال حدثني نافع "
         "عن ابن عمر ان رسول الله صلى الله عليه وسلم قال من اقتنى كلبا")
+# The same unit as a printed edition sets it: fully vowelled. Editions like
+# this are the ordinary input to the web app, not an edge case.
+UNIT_VOWELLED = (
+    "1248 - حَدَّثَنَا مُحَمَّدُ بْنُ بَشَّارٍ قَالَ حَدَّثَنَا يَحْيَى عَنْ عُبَيْدِ اللَّهِ قَالَ "
+    "حَدَّثَنِي نَافِعٌ عَنِ ابْنِ عُمَرَ أَنَّ رَسُولَ اللَّهِ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ "
+    "قَالَ مَنِ اقْتَنَى كَلْبًا")
 
 needs_models = pytest.mark.skipif(
     not (MODELS_DIR / "tashkeel_bilstm_pos.pt").exists(),
@@ -33,6 +39,17 @@ def test_normalize_folds_orthographic_variants():
 def test_has_tashkeel():
     assert has_tashkeel("قَالَ")
     assert not has_tashkeel("قال")
+
+
+def test_strip_diacritics_leaves_the_letters_alone():
+    # Unlike normalize_arabic, which also folds أ إ آ ة ى.
+    assert strip_diacritics("أَحْمَد") == "أحمد"
+    assert strip_diacritics("مَكْتَبَة") == "مكتبة"
+    assert not has_tashkeel(strip_diacritics("قَالَ رَسُولُ اللَّهِ"))
+    # Marks never stand alone, so a word count survives it. The structure
+    # tagger relies on this to keep per-word labels aligned with the text.
+    v = "حَدَّثَنَا مُحَمَّدُ بْنُ بَشَّارٍ"
+    assert len(strip_diacritics(v).split()) == len(v.split())
 
 
 def test_whitespace_tokenize_offsets_map_back():
@@ -123,6 +140,33 @@ def test_structure_tagger_separates_chain_from_body():
     assert labels["1248"] == "HNUM"
     assert labels["حدثنا"] == "ISNAD"
     assert labels["اقتنى"] == "MATN"
+
+
+@needs_models
+def test_structure_tagger_is_not_fooled_by_diacritics():
+    """A vowelled edition must segment like its unvowelled twin.
+
+    It did not: the training pages carry vowelled headings above unvowelled
+    running text, so the model learned "carries marks" as a proxy for HEADING
+    and labelled a fully vowelled isnād as a section title. The encoder is now
+    shown the bare skeleton. Guarding the property rather than the mechanism,
+    so a retrain that genuinely learns the distinction also passes.
+    """
+    s = StructureTagger.load()
+    assert ([t for _, t in s.tag(UNIT_VOWELLED)]
+            == [t for _, t in s.tag(strip_diacritics(UNIT_VOWELLED))])
+    labels = dict(s.tag(UNIT_VOWELLED))
+    assert labels["حَدَّثَنَا"] == "ISNAD"
+    assert labels["اقْتَنَى"] == "MATN"
+    assert "HEADING" not in labels.values()
+    # The marks belong to the reader: only the encoder sees them removed.
+    assert "".join(c for _, c in s.segments(UNIT_VOWELLED)).count("\u0651") > 0
+
+
+@needs_models
+def test_structure_segments_return_the_caller_s_own_text():
+    s = StructureTagger.load()
+    assert " ".join(c for _, c in s.segments(UNIT_VOWELLED)) == UNIT_VOWELLED
 
 
 @needs_models

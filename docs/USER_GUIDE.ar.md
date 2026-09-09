@@ -595,6 +595,7 @@ d = Diacritizer.load(pos=False, device="cpu")   # الإصدار 0.1 أخفّ
 | `StructureTagger.load(device=None, path=None)` | مُقسِّمًا |
 | `.tag(text)` / `.segments(text)` / `.spans(text)` | لكل كلمة / مجمّعة / مواضع |
 | `normalize_arabic(text)` | النص بصور رسم موحّدة |
+| `strip_diacritics(text)` | حذف الحركات والتطويل مع بقاء الحروف كما هي |
 | `split_marks(text)` / `apply_marks(text, labels)` | نزع التشكيل / إعادته |
 | `parse_isnad(text)` | تحليل الإسناد القواعدي |
 

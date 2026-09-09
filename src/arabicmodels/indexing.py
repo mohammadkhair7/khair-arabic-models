@@ -35,12 +35,33 @@ from .common import (DATA_DIR, MODELS_DIR, Vocab, WordTagger,
                      add_train_io_args, device, encode_words, init_or_build,
                      load_ckpt, pad_batch, pad_words, read_jsonl, save_ckpt,
                      seed_all)
+from .normalize import strip_diacritics
 
 CKPT = MODELS_DIR / "indexing_wordtagger.pt"
 DATA = DATA_DIR / "indexing.jsonl"
 TAGS = ["HNUM", "ISNAD", "MATN", "HEADING"]
 MAX_WORDS = 220
 _NUM = re.compile(r"^[\d\u0660-\u0669]+[-–.)\]]*$")
+
+
+def _encoder_words(words: list[str]) -> list[str]:
+    """The spelling the tagger is shown, which is not the one it is asked about.
+
+    Diacritics are a spurious cue in this corpus. The training pages carry
+    vowelled كتاب/باب headings above unvowelled running text, so "is marked up"
+    and "is a heading" coincide almost perfectly, and the model took the
+    shortcut: feed it a fully vowelled isnād and it answers HEADING for every
+    word. It is not a small effect and not a rare input — a vowelled edition
+    pasted into the web app is the ordinary case, and about a third of the
+    characters being marks is enough to flip the whole unit.
+
+    So the encoder reads the bare skeleton, which is what the ISNAD and MATN
+    training text looked like, while the caller keeps the text it passed in.
+    Only the marks go: `normalize_arabic` would also fold أ إ آ ة ى, and those
+    letters are real signal to a character encoder — folding them measurably
+    moves the isnād/matn boundary.
+    """
+    return [strip_diacritics(w) for w in words]
 
 
 def _words_with_offsets(text: str) -> list[tuple[str, int]]:
@@ -212,7 +233,7 @@ def tag_words(model, cvocab, tvocab, dev, words: list[str]) -> list[str]:
     if not words:
         return []
     itos = tvocab.itos()
-    x = pad_words([encode_words(words[:MAX_WORDS], cvocab)]).to(dev)
+    x = pad_words([encode_words(_encoder_words(words[:MAX_WORDS]), cvocab)]).to(dev)
     pred = model(x).argmax(-1)[0][:len(words)].tolist()
     tags = [itos.get(t, "?") for t in pred]
     return tags + ["?"] * (len(words) - len(tags))
@@ -256,7 +277,8 @@ def page_spans(model, cvocab, tvocab, dev, text: str) -> list[list]:
     spans: list[list] = []
     for i in range(0, len(words), MAX_WORDS):
         chunk = words[i:i + MAX_WORDS]
-        x = pad_words([encode_words([w for w, _ in chunk], cvocab)]).to(dev)
+        x = pad_words([encode_words(_encoder_words([w for w, _ in chunk]),
+                                    cvocab)]).to(dev)
         tags = model(x).argmax(-1)[0][:len(chunk)].tolist()
         for (w, off), t in zip(chunk, tags):
             label = itos.get(t, "?")

@@ -608,6 +608,7 @@ so the model loads only once. Memory: about 20 MB for v0.1, 31 MB for v0.2.
 | `StructureTagger.load(device=None, path=None)` | a segmenter |
 | `.tag(text)` / `.segments(text)` / `.spans(text)` | per word / grouped / offsets |
 | `normalize_arabic(text)` | spelling variants folded |
+| `strip_diacritics(text)` | marks and taṭwīl off, letters untouched |
 | `split_marks(text)` / `apply_marks(text, labels)` | marks off / marks back on |
 | `parse_isnad(text)` | the rule-based chain parse |
 

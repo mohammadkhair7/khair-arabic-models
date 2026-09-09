@@ -9,7 +9,7 @@ a single manually labeled example. See `docs/PAPER.md`.
 """
 from .api import Diacritizer, PosTagger, StructureTagger
 from .isnad import IsnadParse, parse_isnad
-from .normalize import has_tashkeel, normalize_arabic
+from .normalize import has_tashkeel, normalize_arabic, strip_diacritics
 from .tashkeel import apply_marks, split_marks
 from .tokenization import Token, whitespace_tokenize
 
@@ -22,6 +22,7 @@ __all__ = [
     "StructureTagger",
     # text utilities
     "normalize_arabic",
+    "strip_diacritics",
     "has_tashkeel",
     "split_marks",
     "apply_marks",

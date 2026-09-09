@@ -38,7 +38,11 @@ This is classification, not generation: the source text is never rewritten, so
 every decision is auditable and reversible.
 
 **Input.** Whitespace-tokenized text, up to 220 words per sequence. Raw surface
-forms — no normalization, no diacritic stripping.
+forms, except that **diacritics are stripped before encoding** — see the
+shortcut below. Nothing else is normalized: the hamza carriers, tāʾ marbūṭa and
+alif maqṣūra reach the character encoder as written, because folding them
+measurably moves the chain/body boundary. The caller's text is untouched; only
+the encoder sees the bare skeleton.
 
 **Output.** One label per word, or `[start, end, label]` character spans via
 `StructureTagger.spans()`.
@@ -62,10 +66,37 @@ value of the model is generalization — it applies the same convention to text
 the rules parse poorly — but that generalization is precisely what these
 figures do not measure.
 
-**Known weakness.** Trained on single hadith units, applied at serving time to
-whole pages in consecutive 220-word blocks. Block boundaries are where errors
-concentrate, and no metric here covers that mismatch. `usable_spans()` exists
-to skip pages (front matter, indexes) that contain no real hadith anatomy.
+**Known weakness — the model learned a shortcut for `HEADING`.** In the source
+books the كتاب / باب titles are vowelled and the running text around them is
+not, so "carries diacritics" and "is a heading" almost never disagree, and the
+model learned the cheaper feature. Fed a fully vowelled isnād it answers
+`HEADING` for every word. The effect is graded, not a cliff: vowelling a
+correct `ISNAD` unit word by word, the labels hold until roughly a third of the
+characters are marks and then flip wholesale.
+
+This is why the encoder is now shown the stripped skeleton, which is what the
+`ISNAD` and `MATN` training text looked like. It is a mitigation and not a
+repair — the model still cannot use diacritics as evidence, when for a heading
+they genuinely are some. The repair is to strip marks in `_prepare` as well and
+retrain, so the distinction has to be learned from the words; that needs the
+corpus and a fresh set of numbers, so it is deliberately not folded in here.
+
+The figures above are unaffected: the test split is already unvowelled, so
+stripping is a no-op over it. Equally, they never measured this failure — which
+is the point worth keeping. A held-out set drawn from the same unvowelled text
+cannot see a shortcut that only fires on vowelled input, and the web app's
+ordinary input is a vowelled edition.
+
+**Known weakness — page-level application.** Trained on single hadith units,
+applied at serving time to whole pages in consecutive 220-word blocks. Block
+boundaries are where errors concentrate, and no metric here covers that
+mismatch. `usable_spans()` exists to skip pages (front matter, indexes) that
+contain no real hadith anatomy.
+
+**Known weakness — a matn with no isnād.** Training units are either all
+`HEADING` or a chain followed by a body, so a bare report quoted on its own is
+out of distribution and tends to come back `HEADING`. Pass whole units, chain
+included, when you have them.
 
 ---
 
