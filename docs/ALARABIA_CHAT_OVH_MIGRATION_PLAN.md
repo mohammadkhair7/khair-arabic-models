@@ -139,16 +139,35 @@ runs in production, and `webapp/README.md` stays true.
 `deploy/cicd/`, matching how `quran-chat`, `hadith-chat` and `tajweed-chat` are
 arranged.
 
-### 3.1 Why not GitHub Actions
+### 3.1 On GitHub Actions
 
-The other apps on this host settled on a pull-based timer, and alarabia follows
-them rather than introducing a second pattern. A workflow that SSHes in and runs
-`docker compose up` conflicts with how Server A works on three counts: it tends
-to publish a port that bypasses the shared edge and its TLS, it requires
-long-lived plaintext secrets on the host instead of just-in-time OKMS reads, and
-it needs repo write credentials where a read-only deploy key suffices. The
-pull-based timer also degrades better — if the host is briefly unreachable the
-next poll simply catches up, whereas a pushed workflow run just fails.
+Worth separating two different things, because the fleet has rejected one and
+uses the other.
+
+**Rejected: Actions as a replacement for this framework.** A workflow that SSHes
+in and runs `docker compose up` against its own root-level compose file conflicts
+with how Server A works on three counts — it publishes a port that bypasses the
+shared edge and its TLS, it needs long-lived plaintext secrets on the host
+instead of just-in-time OKMS reads, and it wants repo write credentials where a
+read-only deploy key suffices. Tajweed.chat had exactly that and removed it
+rather than extending it (`TAJWEED_MIGRATION_PLAN.md` §3.1).
+
+**Available: Actions as an extra *trigger* for this framework.** Quran.chat keeps
+`.github/workflows/deploy-ovh.yml`, which ships `deploy/cicd/*` to the host and
+then runs the same `deploy.sh` — same OKMS reads, same edge snippet, same health
+gate. It changes only *when* a deploy starts, turning "within 5 minutes" into
+"within seconds of the push". It is gated on a `DEPLOY_ENABLED` repo variable so
+it stays inert until deliberately switched on.
+
+alarabia.chat currently uses the timer alone, which is the pattern three of the
+four apps use and needs no credential outside the host. Adding the quran.chat
+style trigger later is additive and does not change anything documented here; it
+would need `OVH_DEPLOY_HOST`, `OVH_DEPLOY_USER` and `OVH_DEPLOY_SSH_KEY` as repo
+secrets, `OVH_DEPLOY_PORT` (`49222`) and `DEPLOY_ENABLED` as variables. The
+trade-off is one more credential to hold and rotate — a workstation SSH key in
+GitHub — in exchange for a few minutes of latency. The timer also degrades
+better: if the host is briefly unreachable the next poll simply catches up,
+whereas a pushed run just fails.
 
 ---
 
@@ -691,6 +710,14 @@ protect: raise `ALARABIA_APP_MEM` / `_CPUS`, and drop `oom_score_adj` from
   subject line so the mail is attributable. Moving to an `@alarabia.chat` sender
   needs a verified sender on the SendGrid account first, and the domain currently
   has only Namecheap email forwarding.
+- **No uptime monitoring.** Server A runs Prometheus, Alertmanager, Grafana and a
+  blackbox exporter, but their scrape config covers the Kalimat fleet only —
+  `kalimat.chat`, the LiveKit SFU, Patroni and HAProxy on servers B/C. None of
+  the co-hosted `.chat` apps are probed, so alarabia is no worse off than
+  quran.chat, hadith.chat or tajweed.chat, but nothing will page if it goes down.
+  Adding a `blackbox-http` target for `https://alarabia.chat/api/health` is cheap;
+  doing it for one app and not its peers would be the odd choice, so it is a
+  fleet-level decision rather than an alarabia one.
 - **IPv6.** The host has an IPv6 address but the edge is IPv4-only in practice.
   Adding AAAA records fleet-wide would need the edge verified on IPv6 first.
 - **ClamAV memory.** The scanner sits at 952 MB of its 2 GB ceiling with the
