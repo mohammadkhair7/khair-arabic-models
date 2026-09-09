@@ -343,16 +343,19 @@ a timer run rather than being dropped.
 
 The host copy under `/opt/deploy/alarabia-chat/cicd/` does not update itself when
 `deploy.sh` changes in the repo — `deploy.sh` is the thing running, so it cannot
-replace itself mid-run. Re-run the bootstrap to pick up a change to the
-orchestrator:
+replace itself mid-run. Re-run the bootstrap, which is idempotent and reinstalls
+the CI/CD stack, to pick up a change to the orchestrator:
 
 ```bash
-sudo git -C /tmp/alarabia-bootstrap fetch --depth 1 origin main
-sudo git -C /tmp/alarabia-bootstrap reset --hard FETCH_HEAD
-sudo /tmp/alarabia-bootstrap/deploy/ovh/bootstrap-alarabia.sh
+# the checkout is already current: the deploy that shipped the change fetched it
+sudo /opt/alarabia/src/deploy/ovh/bootstrap-alarabia.sh
+sudo systemctl start dcx-deploy@alarabia-chat.service
 ```
 
-The app's own code needs none of this; it is fetched fresh on every deploy.
+So a change to `deploy.sh` takes two deploys to land: the first brings the new
+file into `/opt/alarabia/src` while still running the old orchestrator, and the
+bootstrap then promotes it. The app's own code needs none of this — it is
+fetched and rebuilt on every deploy.
 
 ---
 
@@ -408,7 +411,7 @@ Notes:
 
 ```bash
 # From the server: authoritative records now point here
-sudo /tmp/alarabia-bootstrap/deploy/ovh/dns_survey.sh alarabia.chat
+sudo /opt/alarabia/src/deploy/ovh/dns_survey.sh alarabia.chat
 
 # From anywhere: certificate issued and the app serves
 curl -sSI https://alarabia.chat/ | head -3
@@ -420,8 +423,8 @@ curl -sS https://alarabia.chat/api/process \
      -d 'task=tashkeel' -d 'text=قال رسول الله'
 
 # Everything at once
-sudo /tmp/alarabia-bootstrap/deploy/ovh/smoke-test.sh
-sudo /tmp/alarabia-bootstrap/deploy/ovh/status.sh
+sudo /opt/alarabia/src/deploy/ovh/smoke-test.sh
+sudo /opt/alarabia/src/deploy/ovh/status.sh
 ```
 
 Certificate issuance can be followed with
@@ -475,7 +478,7 @@ waiting out the negative TTL) clears it.
 
 ```bash
 # Status and logs
-sudo /tmp/alarabia-bootstrap/deploy/ovh/status.sh
+sudo /opt/alarabia/src/deploy/ovh/status.sh
 sudo docker ps --filter name=alarabia
 sudo docker logs --tail 100 -f alarabia-app
 sudo journalctl -u dcx-deploy@alarabia-chat.service -n 50
@@ -486,7 +489,7 @@ sudo /opt/deploy/alarabia-chat/cicd/deploy.sh \
      /opt/deploy/alarabia-chat/cicd/alarabia-chat.conf --force
 
 # Verify a deploy (app, models, security posture, edge, neighbours)
-sudo /tmp/alarabia-bootstrap/deploy/ovh/smoke-test.sh
+sudo /opt/alarabia/src/deploy/ovh/smoke-test.sh
 
 # Pause automatic deploys (e.g. during maintenance)
 sudo systemctl disable --now dcx-deploy@alarabia-chat.timer
@@ -564,7 +567,7 @@ cert, `apps.env`, `cicd/okms_put.py`, `cicd/okms_fetch.py`); a shared
 
    ```bash
    sudo ALARABIA_ROOT=/opt/alarabia \
-        /tmp/alarabia-bootstrap/deploy/ovh/bootstrap-alarabia.sh
+        /opt/alarabia/src/deploy/ovh/bootstrap-alarabia.sh
    ```
 
    This creates `/opt/alarabia{,/.ssh}`, installs `git-lfs` if missing, installs
@@ -600,7 +603,7 @@ cert, `apps.env`, `cicd/okms_put.py`, `cicd/okms_fetch.py`); a shared
    ```bash
    sudo /opt/deploy/alarabia-chat/cicd/deploy.sh \
         /opt/deploy/alarabia-chat/cicd/alarabia-chat.conf --force
-   sudo /tmp/alarabia-bootstrap/deploy/ovh/smoke-test.sh
+   sudo /opt/alarabia/src/deploy/ovh/smoke-test.sh
    ```
 
    §5 of the smoke test proves hostname routing with a `Host:` header before DNS
