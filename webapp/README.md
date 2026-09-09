@@ -132,6 +132,32 @@ The `VITE_DONATE_*_URL` spellings hadith.chat uses are also accepted, so one
 
 ---
 
+## Deployment
+
+The public alarabia.chat runs on an OVH host shared with quran.chat,
+hadith.chat and tajweed.chat, using the same pull-based deploy framework: a
+systemd timer polls `main`, a read-only GitHub deploy key fetches it, secrets
+come from OVH Secret Manager just-in-time, and a shared Caddy terminates TLS
+and routes the hostname to the container. Nothing is published on a host port.
+
+Everything needed is in [`deploy/`](../deploy): the production compose file,
+the on-host orchestrator, and the scripts that onboard a machine, load the
+secrets, and verify a deploy. The image is this directory's `Dockerfile`, so
+what runs in production is what `docker compose -f webapp/docker-compose.yml
+up` gives you locally.
+
+Two things are worth knowing before touching it. The model weights are Git LFS
+objects, and a checkout without `git-lfs` leaves pointer files that build,
+start and pass a health check before failing on the first real request — the
+deploy fetches `models/**` explicitly and refuses to build if a checkpoint is
+still pointer-sized. And the app keeps no state at all, which is what makes
+moving it between servers a redeploy rather than a data migration.
+
+Full configuration inventory, DNS, and the runbook for moving to another
+server: [`docs/ALARABIA_CHAT_OVH_MIGRATION_PLAN.md`](../docs/ALARABIA_CHAT_OVH_MIGRATION_PLAN.md).
+
+---
+
 ## Notes on the PDF export
 
 A PDF has no text engine — it places glyphs at coordinates — so Arabic has to

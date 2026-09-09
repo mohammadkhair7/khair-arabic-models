@@ -37,10 +37,11 @@ ck() { # ck <label> <expected-substring> <command...>
 }
 
 # The image is a slim python base with no curl in it, so every in-container
-# probe goes through urllib rather than a shell HTTP client.
-py() { docker exec "$APP" python -c "$1"; }
-GET='import sys,urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000"+sys.argv[1]).read().decode()[:800])'
-POST='import sys,urllib.parse,urllib.request;d=urllib.parse.urlencode({"task":sys.argv[2],"text":sys.argv[3]}).encode();print(urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000"+sys.argv[1],data=d)).read().decode()[:800])'
+# probe goes through urllib rather than a shell HTTP client. Responses are NOT
+# truncated: /api/config is several KB and the interesting keys are at the end
+# of it, so clipping the body would fail checks that ought to pass.
+GET='import sys,urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000"+sys.argv[1]).read().decode())'
+POST='import sys,urllib.parse,urllib.request;d=urllib.parse.urlencode({"task":sys.argv[2],"text":sys.argv[3]}).encode();print(urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000"+sys.argv[1],data=d)).read().decode())'
 
 get()  { docker exec "$APP" python -c "$GET" "$1"; }
 post() { docker exec "$APP" python -c "$POST" "$1" "$2" "$3"; }
@@ -52,7 +53,10 @@ ck "/api/health answers"              'ok'                 get /api/health
 ck "index page renders"               '<title>'            get /
 ck "config lists the four tasks"      'structure'          get /api/config
 ck "config offers four formats"       'pdf'                get /api/config
-ck "PDF export is available"          '"available": true'  get /api/config
+# PDF is the one format that can be absent at runtime: it needs an Arabic
+# TrueType font on the system, and the app disables the button rather than
+# failing if it finds none. The image installs fonts-noto-core for this.
+ck "PDF export is available"          '"key":"pdf","label":"PDF (.pdf)","available":true' get /api/config
 
 echo "== 1b. donations, wired the same way as tajweed.chat =="
 ck "monthly tier present"             'monthly'            get /api/config
@@ -74,19 +78,29 @@ ck "no SendGrid key in the config"    '^0$'                docker exec "$APP" sh
    "python -c \"import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8000/api/config').read().decode())\" | grep -ci 'SG\.\|SENDGRID' || true"
 ck "filesystem is read-only"          'Read-only'          docker exec "$APP" sh -lc "touch /app/x 2>&1 || true"
 ck "runs as nobody, not root"         '65534'              docker exec "$APP" id -u
-ck "clamd answers on the private net" 'PONG'               docker exec "$CLAM" clamdscan --ping 1 2>/dev/null \
-   || ck "clamd answers on the private net" 'OK'           docker exec "$CLAM" clamdcheck.sh
-ck "clamav is NOT on the edge network" '^$'                docker exec "$EDGE" sh -lc \
-   "nslookup $CLAM 2>/dev/null | grep -A1 'Name:' | tail -1 || true"
+ck "clamd answers on the private net" 'Clamd is up'        docker exec "$CLAM" clamdcheck.sh
+# The scanner must be reachable by this app and by nothing else. Asking Docker
+# which containers are attached to `edge` is the fact itself; probing DNS from
+# the edge only tells you what one resolver happened to answer. The template
+# prints ABSENT as a sentinel, because "no output" and "the check never ran"
+# look identical to grep.
+ck "clamav is NOT on the edge network" '^ABSENT$'          docker network inspect edge \
+   -f "{{range .Containers}}{{if eq .Name \"$CLAM\"}}PRESENT{{end}}{{end}}ABSENT"
+ck "app IS on the edge network"       "$APP"               docker network inspect edge \
+   -f "{{range .Containers}}{{if eq .Name \"$APP\"}}{{.Name}}{{end}}{{end}}"
 
 echo "== 4. shared edge reaches the app over the edge network =="
 ck "edge -> $APP:8000/api/health"     '200'                docker exec "$EDGE" sh -lc \
    "wget -S -qO /dev/null http://$APP:8000/api/health 2>&1 | head -3"
 
 echo "== 5. public hostname routing (works before DNS cutover) =="
-ck "$DOMAIN matches a site block"     "https://$DOMAIN"    docker exec "$EDGE" sh -lc \
+# On :80 Caddy answers every known hostname with its own HTTPS upgrade, so a
+# 308 to https://<the same host>/ is the proof that the name matched a site
+# block at all. The www -> apex redirect lives inside the HTTPS block and only
+# shows up once there is a certificate, which needs DNS; do not expect it here.
+ck "$DOMAIN matches a site block"      "https://$DOMAIN"      docker exec "$EDGE" sh -lc \
    "wget -S -qO /dev/null --header='Host: $DOMAIN' http://127.0.0.1:80/ 2>&1 | head -6"
-ck "www.$DOMAIN redirects to the apex" "https://$DOMAIN"   docker exec "$EDGE" sh -lc \
+ck "www.$DOMAIN matches a site block"  "https://www.$DOMAIN"  docker exec "$EDGE" sh -lc \
    "wget -S -qO /dev/null --header='Host: www.$DOMAIN' http://127.0.0.1:80/ 2>&1 | head -6"
 
 echo "== 6. co-hosted neighbours unaffected =="
