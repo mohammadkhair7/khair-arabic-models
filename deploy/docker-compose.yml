@@ -1,0 +1,167 @@
+# =============================================================================
+# alarabia.chat — application tier for OVH Server A.
+#
+# Built and (re)started by the CI/CD orchestrator:
+#   /opt/deploy/alarabia-chat/cicd/deploy.sh \
+#       /opt/deploy/alarabia-chat/cicd/alarabia-chat.conf
+# with a merged --env-file (apps.env + /opt/alarabia/host.env + OKMS secrets).
+#
+# ── Isolation (the whole point of this file) ──
+# This app has NO persistent state at all. Uploads are read into memory,
+# parsed from a BytesIO and dropped; results live in the process for
+# ARABICWEB_RESULT_TTL_S seconds and are never written to disk. There is no
+# database server, no bind mount and no docker volume to migrate — moving to
+# the future Server "QC" is: run the same deploy, copy the OKMS object, change
+# DNS. See docs/ALARABIA_CHAT_OVH_MIGRATION_PLAN.md.
+#
+# Networks: `edge` for the shared reverse proxy (edge-caddy routes
+# alarabia.chat -> alarabia-app:8000), and a private `alarabia-net` carrying
+# nothing but the app's clamd traffic. No host port is published.
+#
+# ── Not disturbing the co-hosted apps (Quran.chat, Hadith.chat, Tajweed.chat,
+#    QuranComputing.org, DeepCerebra.io/.net) ──
+# Most neighbours on this host are uncapped, so these containers are explicitly
+# bounded rather than trusted: mem_limit turns a leak in a document parser into
+# a single-container OOM kill, cpus leaves cores for the neighbours, a positive
+# oom_score_adj makes the kernel pick this app before it picks anyone else's
+# database, and the json-file caps stop logs filling the shared disk.
+# =============================================================================
+name: alarabia-chat
+
+services:
+  app:
+    build:
+      # Context is the repository root: the image needs src/, models/ and
+      # webapp/. data/ is deliberately not copied — the training corpus is
+      # 156 MB of LFS objects that inference never reads.
+      context: ..
+      dockerfile: webapp/Dockerfile
+    image: alarabiachat:latest
+    container_name: alarabia-app
+    restart: unless-stopped
+
+    environment:
+      # ── public identity ──
+      SITE_DOMAIN: ${ALARABIA_DOMAIN:-alarabia.chat}
+      INSTITUTE_URL: ${INSTITUTE_URL:-https://qurancomputing.org}
+      PROJECT_URL: ${PROJECT_URL:-https://hadith.chat}
+
+      # ── donations ──
+      # Stripe Payment Links: public URLs, not credentials. Stripe hosts the
+      # checkout page, so this app never sees a card number and needs no
+      # Stripe secret key, publishable key or webhook secret. Left empty the
+      # app falls back to the same two links tajweed.chat and hadith.chat use.
+      DONATE_MONTHLY_URL: ${DONATE_MONTHLY_URL:-}
+      DONATE_ONETIME_URL: ${DONATE_ONETIME_URL:-}
+
+      # ── feedback email (OKMS alarabia-chat/deploy) ──
+      # SENDGRID_API_KEY is the only credential this app has. Without it the
+      # feedback form disables itself and says so; everything else still works,
+      # which is why it is not marked required here.
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-info@hadith.chat}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:-info@hadith.chat}
+
+      # ── upload screening ──
+      # Every upload is streamed to the clamd sidecar before any parser opens
+      # it. REQUIRED=1 fails closed: if the scanner is down, uploads are
+      # refused rather than parsed unscanned. Pasted text is unaffected.
+      ARABICWEB_CLAMD_HOST: clamav
+      ARABICWEB_CLAMD_PORT: "3310"
+      ARABICWEB_CLAMAV_REQUIRED: ${ALARABIA_CLAMAV_REQUIRED:-1}
+
+      # ── request ceilings ──
+      ARABICWEB_MAX_UPLOAD_MB: ${ALARABIA_MAX_UPLOAD_MB:-8}
+      ARABICWEB_MAX_UNITS: ${ALARABIA_MAX_UNITS:-2000}
+      ARABICWEB_PROCESS_TIMEOUT_S: ${ALARABIA_PROCESS_TIMEOUT_S:-180}
+      ARABICWEB_RATE_LIMIT_REQUESTS: ${ALARABIA_RATE_LIMIT_REQUESTS:-30}
+      ARABICWEB_RATE_LIMIT_WINDOW_S: ${ALARABIA_RATE_LIMIT_WINDOW_S:-60}
+      ARABICWEB_RESULT_TTL_S: ${ALARABIA_RESULT_TTL_S:-600}
+
+      # ── models ──
+      # CPU only: the four checkpoints total 62 MB and this host has no GPU.
+      # Preloading costs ~1 GB of RSS at startup and makes the first public
+      # request fast instead of paying a few seconds of load time on it.
+      ARABICWEB_DEVICE: ${ALARABIA_DEVICE:-cpu}
+      ARABICWEB_PRELOAD: ${ALARABIA_PRELOAD:-1}
+
+    networks:
+      - edge
+      - alarabia-net
+
+    # ── isolation ─────────────────────────────────────────────────────────
+    # The app opens documents sent by strangers. If a parser is ever exploited,
+    # this is what the exploit lands in: no root, no writable filesystem, no
+    # capabilities, no way to gain privileges.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: ${ALARABIA_PIDS_LIMIT:-256}
+
+    healthcheck:
+      # The image has no curl (it is a slim python base and stays that way),
+      # so the probe is the same stdlib call the Dockerfile's HEALTHCHECK uses.
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # Grace period covers preloading the four checkpoints on a cold start.
+      start_period: ${ALARABIA_START_PERIOD:-120s}
+
+    mem_limit: ${ALARABIA_APP_MEM:-4g}
+    cpus: ${ALARABIA_APP_CPUS:-2.0}
+    oom_score_adj: 500
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Deliberately NOT a `depends_on: service_healthy` of the app. A cold
+  # signature download takes minutes and can fail; gating the app on it would
+  # turn a slow mirror into a failed deploy and a dark site. Unlinked, the app
+  # serves pasted text immediately and uploads fail closed until clamd answers,
+  # which is the same trade-off ARABICWEB_CLAMAV_REQUIRED=1 already makes.
+  clamav:
+    image: clamav/clamav:stable
+    container_name: alarabia-clamav
+    restart: unless-stopped
+    # Private network only. The scanner is reachable by this app and nothing
+    # else — it is not on `edge`, so no other container on the host can talk
+    # to it and it can never be routed to from the internet.
+    networks:
+      - alarabia-net
+    volumes:
+      # The signature database (~1 GB) survives redeploys here. Without it
+      # every deploy would re-download it from clamav.net, which is slow and
+      # rate-limited enough to leave the scanner unhealthy for a while — and
+      # ARABICWEB_CLAMAV_REQUIRED=1 turns that into refused uploads.
+      - clamav-db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+    mem_limit: ${ALARABIA_CLAMAV_MEM:-2g}
+    cpus: ${ALARABIA_CLAMAV_CPUS:-1.0}
+    oom_score_adj: 500
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  edge:
+    name: ${EDGE_NETWORK:-edge}
+    external: true
+  alarabia-net:
+    name: ${ALARABIA_NETWORK:-alarabia-net}
+
+volumes:
+  clamav-db:

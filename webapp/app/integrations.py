@@ -77,15 +77,17 @@ SITE_DOMAIN = _env("SITE_DOMAIN", default="alarabia.chat")
 
 def donation_options() -> list[dict]:
     """The donation tiers the page offers, in display order."""
+    # The amounts are in the labels because the Stripe Payment Links behind
+    # them are fixed-price, and tajweed.chat words them the same way.
     return [
         {"key": "monthly", "url": DONATE_MONTHLY_URL,
-         "label": "Donate monthly", "label_ar": "تبرّع شهري",
+         "label": "Monthly donation $5", "label_ar": "التبرع الشهري $5",
          "note": "A recurring gift that keeps the service free for everyone.",
          "note_ar": "تبرّع متكرر يبقي الخدمة مجانية للجميع."},
         {"key": "onetime", "url": DONATE_ONETIME_URL,
-         "label": "One-time donation", "label_ar": "تبرّع لمرة واحدة",
-         "note": "A single contribution of any amount.",
-         "note_ar": "مساهمة واحدة بأي مبلغ."},
+         "label": "One-time donation $10", "label_ar": "للتبرع $10",
+         "note": "A single gift, on Stripe's own secure page.",
+         "note_ar": "مساهمة واحدة عبر صفحة سترايب الآمنة."},
     ]
 
 
