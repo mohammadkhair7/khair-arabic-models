@@ -96,9 +96,12 @@ with httpx.Client(base_url=BASE, timeout=180) as http:
     check("CSP locked down", "default-src 'none'" in home.headers["content-security-policy"])
     check("open-source link on the page",
           "github.com/qurancomp/khair-arabic-models" in home.text)
-    for asset in ("/static/app.css", "/static/app.js",
-                  "/static/img/institute-logo.png", "/static/img/institute-name.png"):
+    for asset in ("/static/app.css", "/static/app.js", "/static/theme.js",
+                  "/static/img/institute-logo.png", "/static/img/institute-name.png",
+                  "/static/img/qurancomputing.ico"):
         check(f"asset {asset}", http.get(asset).status_code == 200)
+    check("theme applied before first paint",
+          '<script src="/static/theme.js"></script>' in home.text.split("</head>")[0])
 
     print("\n== pasted text, each task ==")
     for task in ("tashkeel", "tashkeel_gaps", "pos", "structure"):
@@ -106,6 +109,16 @@ with httpx.Client(base_url=BASE, timeout=180) as http:
         body = r.json()
         out = body["units"][0]["output"]
         check(f"task {task}", r.status_code == 200, out[:70].replace("\n", " / "))
+
+    print("\n== narrator chain ==")
+    chain_unit = http.post("/api/process", data={
+        "task": "structure", "text": LINES[0]}).json()["units"][0]
+    chain = chain_unit["narrators"]
+    check("narrators returned", bool(chain),
+          " / ".join(f"{h['verb']} {h['name']}" for h in chain))
+    isnad = [c for label, c in chain_unit["pairs"] if label == "ISNAD"]
+    check("every narrator sits inside the isnād the model marked",
+          bool(isnad) and all(any(h["name"] in c for c in isnad) for h in chain))
 
     print("\n== file uploads ==")
     uploads = {

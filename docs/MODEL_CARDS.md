@@ -95,8 +95,25 @@ contain no real hadith anatomy.
 
 **Known weakness — a matn with no isnād.** Training units are either all
 `HEADING` or a chain followed by a body, so a bare report quoted on its own is
-out of distribution and tends to come back `HEADING`. Pass whole units, chain
-included, when you have them.
+out of distribution and tends to come back `HEADING` — often alternating with
+`MATN` word by word rather than settling. Pass whole units, chain included,
+when you have them.
+
+Batching several units into one window is not the fix it looks like. It does
+settle a bare matn into a clean `MATN`, but a real heading that follows a body
+then reads as more body: joining units into one word stream throws away the
+line boundaries the user drew, and those boundaries carry as much signal as
+the surrounding words do. So units are tagged one at a time and this weakness
+stands.
+
+**Narrators are not the model's work.** `StructureTagger.narrators()` splits an
+`ISNAD` segment into `(verb, name)` hops with `arabicmodels.isnad`, the same
+rule set that labeled the training data — no network runs and none of the
+numbers above apply to it. It takes the model's own `ISNAD` span rather than
+re-deriving the chain boundary, so a page that draws both cannot show a
+narrator sitting outside the isnād beside it. The hops carry character offsets
+into the span, which is what callers should display: `Hop.mention` is folded
+for matching and renders `عَائِشَة` as `عاءشه`.
 
 ---
 

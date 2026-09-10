@@ -17,6 +17,18 @@ from .extract import Document
 
 
 @dataclass
+class Narrator:
+    """One link of an isnād: the verb that hands the report on, and the man
+    it is handed to. `seg` is the index of the ISNAD pair this came from, so
+    the page can print the chain under the right segment when a unit holds
+    more than one hadith."""
+    seg: int
+    n: int
+    verb: str
+    name: str
+
+
+@dataclass
 class Unit:
     """One processed line/paragraph/row."""
     n: int
@@ -26,6 +38,9 @@ class Unit:
     # codes stay canonical here - `labels.name` turns them into English or
     # Arabic at the moment of display, so one result can be shown either way.
     pairs: list[tuple[str, str]] = field(default_factory=list)
+    # Narrators of every ISNAD segment above, in transmission order. Structure
+    # task only; empty when the model found no chain.
+    narrators: list[Narrator] = field(default_factory=list)
 
 
 @dataclass
@@ -95,16 +110,51 @@ def _run_structure(text: str) -> tuple[str, list]:
     return "", _get("structure").segments(text)
 
 
-def _format_pairs(kind: str, pairs: list, lang: str) -> str:
+def _narrators(pairs: list[tuple[str, str]]) -> list[Narrator]:
+    """Split every ISNAD segment the model found into its narrators.
+
+    Deliberately driven off `pairs` rather than off the unit's raw text: the
+    rules then divide exactly the span the page shades as the chain, and the
+    two readings on screen cannot disagree.
+    """
+    from arabicmodels import StructureTagger
+
+    out: list[Narrator] = []
+    for i, (label, chunk) in enumerate(pairs):
+        if label != "ISNAD":
+            continue
+        for n, hop in enumerate(StructureTagger.narrators(chunk), start=1):
+            out.append(Narrator(seg=i, n=n,
+                                verb=chunk[hop.verb_start:hop.verb_end],
+                                name=chunk[hop.start:hop.end]))
+    return out
+
+
+def _format_pairs(kind: str, pairs: list, lang: str,
+                  narrators: list[Narrator] = ()) -> str:
     """Render tagged output as text, in the reader's language.
 
     POS pairs are (word, tag) and read left-to-right as `word/tag`; structure
-    pairs are (label, chunk) and lead with the bracketed label.
+    pairs are (label, chunk) and lead with the bracketed label, with each
+    chain's narrators listed under it.
+
+    Every text export goes through here, which is why the narrators are woven
+    into the text rather than appended to the exporters one at a time: .txt,
+    Markdown, the PDF and the copy button then cannot disagree about what the
+    chain was.
     """
     if kind == "pos":
         return " ".join(f"{w}/{labels.name('pos', t, lang)}" for w, t in pairs)
-    return "\n".join(f"[{labels.name('structure', label, lang)}] {chunk}"
-                     for label, chunk in pairs)
+
+    words = labels.narrator_words(lang)
+    lines: list[str] = []
+    for i, (label, chunk) in enumerate(pairs):
+        lines.append(f"[{labels.name('structure', label, lang)}] {chunk}")
+        chain = [h for h in narrators if h.seg == i]
+        if chain:
+            lines.append(f"    {words['heading']}:")
+            lines += [f"      {h.n}. {h.verb} — {h.name}" for h in chain]
+    return "\n".join(lines)
 
 
 @dataclass(frozen=True)
@@ -158,9 +208,9 @@ def relabel(result: Result, lang: str) -> Result:
     units = result.units
     if task.tag_kind:
         units = [Unit(u.n, u.source,
-                      _format_pairs(task.tag_kind, u.pairs, lang)
+                      _format_pairs(task.tag_kind, u.pairs, lang, u.narrators)
                       if u.pairs else u.output,
-                      u.pairs)
+                      u.pairs, u.narrators)
                  for u in result.units]
     return replace(result, units=units, lang=lang,
                    task_label=task.label_ar if lang == "ar" else task.label)
@@ -196,9 +246,10 @@ def process(document: Document, task_key: str,
             break
         output, pairs = task.run(source)
         pairs = list(pairs)
+        narrators = _narrators(pairs) if task.key == "structure" else []
         if task.tag_kind:
-            output = _format_pairs(task.tag_kind, pairs, lang)
-        units.append(Unit(i, source, output, pairs))
+            output = _format_pairs(task.tag_kind, pairs, lang, narrators)
+        units.append(Unit(i, source, output, pairs, narrators))
 
     # Keep the table rectangular if the timeout cut us short.
     if document.table is not None and len(units) < len(document.table.rows):

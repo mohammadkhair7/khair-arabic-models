@@ -6,19 +6,35 @@
 <title>alarabia.chat — free Arabic text processing</title>
 <meta name="description" content="Free Arabic diacritization, part-of-speech tagging and hadith structure analysis. Open-source models from the International Computing Institute for Quran and Islamic Sciences.">
 <link rel="stylesheet" href="/static/app.css">
-<link rel="icon" href="/static/img/institute-logo.png">
+<link rel="icon" href="/static/img/qurancomputing.ico" sizes="any">
+<link rel="apple-touch-icon" href="/static/img/institute-logo.png">
+<!-- Applies the saved theme before the first paint, so the page never flashes
+     light and then turns dark. A separate file, not an inline script: the CSP
+     is `script-src 'self'` with nothing inline allowed. Must stay in <head>
+     and stay render-blocking (no defer/async) for that to work. -->
+<script src="/static/theme.js"></script>
 </head>
 <body>
 
 <div class="masthead">
   <div class="masthead-inner">
+    <!-- Left cell. It exists mainly to balance the donate button on the right
+         so the brand in the middle cell is centred on the banner itself. -->
+    <button type="button" class="theme-toggle" id="theme-toggle"
+            aria-pressed="false" title="Switch to dark mode">
+      <span class="theme-icon" aria-hidden="true"></span>
+      <span class="visually-hidden">Toggle dark mode</span>
+    </button>
     <a class="brand" href="/">
       <img class="brand-logo" src="/static/img/institute-logo.png"
            alt="International Computing Institute for Quran and Islamic Sciences">
-      <img class="brand-name" src="/static/img/institute-name.png"
-           alt="المعهد العالمي لحوسبة القرآن والعلوم الإسلامية">
+      <span class="brand-names">
+        <img class="brand-name" src="/static/img/institute-name.png"
+             alt="المعهد العالمي لحوسبة القرآن والعلوم الإسلامية">
+        <span class="brand-name-en">International Computing Institute
+          for Quran and Islamic Sciences</span>
+      </span>
     </a>
-    <span class="masthead-spacer"></span>
     <div class="donate" id="donate-widget"></div>
   </div>
 </div>

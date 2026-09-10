@@ -58,6 +58,20 @@ COLUMNS = {
     "structure": {"en": ("segment", "label"), "ar": ("المقطع", "التصنيف")},
 }
 
+# Wording for the narrator chain drawn under an isnād. Not a tag set — these
+# are headings and column names, not codes a model emits — but they live here
+# for the same reason everything else does: one place, so the preview, the
+# CSV, the Markdown and the PDF cannot word it differently.
+NARRATORS = {
+    "en": {"heading": "narrators", "n": "#", "verb": "verb", "name": "narrator"},
+    "ar": {"heading": "رواة الإسناد", "n": "#", "verb": "صيغة التحمل",
+           "name": "الراوي"},
+}
+
+
+def narrator_words(lang: str = DEFAULT_LANGUAGE) -> dict[str, str]:
+    return NARRATORS[normalize(lang)]
+
 
 def normalize(lang: str | None) -> str:
     """Coerce anything the client sends into a language we actually have."""

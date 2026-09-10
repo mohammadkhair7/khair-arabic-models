@@ -452,6 +452,13 @@ reproduce that convention; its intended value is to carry it to pages the
 rules parse poorly and to supply a per-token confidence that can queue pages
 for review (§8.3, §10).
 
+The same parser has a second role, outside training. Once the model has marked
+an `ISNAD` span, `narrator_hops` divides that span into (verb, name) hops for
+display, taking the boundary as given rather than re-deriving it: the model
+decides where the chain is, the rules decide how it is divided, and neither
+overrules the other. This is presentation, not a model claim — none of the
+figures in §8 measure it.
+
 ### 4.4 Text as labeler — diacritization labels
 
 Vocalized prints are a gift: the reference is the text itself. The builder

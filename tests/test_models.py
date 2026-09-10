@@ -8,8 +8,9 @@ import unicodedata
 import pytest
 
 from arabicmodels import (Diacritizer, PosTagger, StructureTagger, apply_marks,
-                          has_tashkeel, normalize_arabic, parse_isnad,
-                          split_marks, strip_diacritics, whitespace_tokenize)
+                          has_tashkeel, narrator_hops, normalize_arabic,
+                          parse_isnad, split_marks, strip_diacritics,
+                          whitespace_tokenize)
 from arabicmodels.common import MODELS_DIR, split_of
 
 HADITH = ("حدثنا عبد الله بن يوسف قال أخبرنا مالك عن نافع عن عبد الله بن عمر "
@@ -96,6 +97,40 @@ def test_parse_isnad_finds_boundary_and_narrators():
     assert "مالك" in HADITH[:p.sanad_end_raw]
 
 
+def test_hop_offsets_give_back_the_reader_s_own_spelling():
+    """`mention` is folded for matching; the offsets are what gets displayed.
+
+    On a vowelled edition the two differ in every hop, which is the point: a
+    page that printed `mention` would show عاءشه where the source has عَائِشَة.
+    """
+    p = parse_isnad(UNIT_VOWELLED)
+    assert p.hops
+    for h in p.hops:
+        assert normalize_arabic(UNIT_VOWELLED[h.start:h.end]) == h.mention
+        assert normalize_arabic(UNIT_VOWELLED[h.verb_start:h.verb_end]) == h.verb
+    raw = [UNIT_VOWELLED[h.start:h.end] for h in p.hops]
+    assert "مُحَمَّدُ بْنُ بَشَّارٍ" in raw
+    assert any(has_tashkeel(r) for r in raw)
+    # Honorifics are a title, not a name: they must not ride along on the span.
+    assert not any("رَسُولَ" in r for r in raw)
+
+
+def test_narrator_hops_trusts_the_span_it_is_given():
+    """Given a chain, the rules split it and do not re-decide where it ends.
+
+    `parse_isnad` stops this text at «قال :» and reports two narrators; the
+    same text handed over as a known isnād must yield all four, because the
+    caller — the structure model — has already said the whole span is chain.
+    """
+    chain = ("حدثني محمد بن المثنى ، حدثنا عبد الرحمن ، عن سفيان ، "
+             "عن أبي إسحاق")
+    hops = narrator_hops(chain)
+    assert [chain[h.start:h.end] for h in hops] == [
+        "محمد بن المثنى", "عبد الرحمن", "سفيان", "أبي إسحاق"]
+    assert [chain[h.verb_start:h.verb_end] for h in hops] == [
+        "حدثني", "حدثنا", "عن", "عن"]
+
+
 # --- models ----------------------------------------------------------------
 
 @needs_models
@@ -161,6 +196,22 @@ def test_structure_tagger_is_not_fooled_by_diacritics():
     assert "HEADING" not in labels.values()
     # The marks belong to the reader: only the encoder sees them removed.
     assert "".join(c for _, c in s.segments(UNIT_VOWELLED)).count("\u0651") > 0
+
+
+@needs_models
+def test_structure_narrators_stay_inside_the_span_the_model_marked():
+    s = StructureTagger.load()
+    chains = [c for label, c in s.segments(UNIT_VOWELLED) if label == "ISNAD"]
+    assert chains
+    hops = s.narrators(chains[0])
+    assert len(hops) >= 3
+    names = [chains[0][h.start:h.end] for h in hops]
+    verbs = [chains[0][h.verb_start:h.verb_end] for h in hops]
+    assert "مُحَمَّدُ بْنُ بَشَّارٍ" in names
+    assert "حَدَّثَنَا" in verbs
+    # Every narrator is a substring of the segment the page shades as the
+    # chain, so the two readings on screen cannot contradict each other.
+    assert all(n in chains[0] for n in names)
 
 
 @needs_models

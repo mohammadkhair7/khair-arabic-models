@@ -16,6 +16,7 @@ from pathlib import Path
 import torch
 
 from . import indexing as _indexing
+from . import isnad as _isnad
 from . import pos as _pos
 from . import tashkeel as _tashkeel
 from .common import device as _auto_device
@@ -123,6 +124,12 @@ class StructureTagger:
     """Segment running text into HNUM / ISNAD / MATN / HEADING."""
 
     LABELS = ("HNUM", "ISNAD", "MATN", "HEADING")
+    # The model's context window, in words. Public because callers that batch
+    # several passages together need to know how much fits before the window
+    # closes: whether a line is a chain, a body or a title is partly a
+    # question about the lines around it, and only text inside one window can
+    # answer it.
+    WINDOW = _indexing.MAX_WORDS
 
     def __init__(self, model, cvocab, tvocab, dev):
         self._model = model
@@ -139,10 +146,28 @@ class StructureTagger:
 
     def tag(self, text: str) -> list[tuple[str, str]]:
         """Label each word of one unit. Returns [(word, label), ...]."""
-        words = text.split()
-        tags = _indexing.tag_words(self._model, self._cvocab, self._tvocab,
+        return list(zip(text.split(), self.tag_words(text.split())))
+
+    def tag_words(self, words: list[str]) -> list[str]:
+        """Label a pre-split word list; longer than WINDOW is done in blocks.
+
+        Pass several passages at once, joined in reading order, to give each
+        the others as context — a matn quoted with no chain in front of it is
+        unrecognizable on its own.
+        """
+        return _indexing.tag_words(self._model, self._cvocab, self._tvocab,
                                    self._device, words)
-        return list(zip(words, tags))
+
+    @staticmethod
+    def group(tagged: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        """Merge runs of same-labelled words. [(word, label)] -> [(label, text)]."""
+        out: list[tuple[str, list[str]]] = []
+        for w, tg in tagged:
+            if out and out[-1][0] == tg:
+                out[-1][1].append(w)
+            else:
+                out.append((tg, [w]))
+        return [(label, " ".join(ws)) for label, ws in out]
 
     def spans(self, text: str) -> list[list]:
         """Label a whole page and merge runs into [start, end, label] spans
@@ -152,10 +177,18 @@ class StructureTagger:
 
     def segments(self, text: str) -> list[tuple[str, str]]:
         """Group contiguous same-label words. Returns [(label, text), ...]."""
-        out: list[tuple[str, list[str]]] = []
-        for w, tg in self.tag(text):
-            if out and out[-1][0] == tg:
-                out[-1][1].append(w)
-            else:
-                out.append((tg, [w]))
-        return [(label, " ".join(ws)) for label, ws in out]
+        return self.group(self.tag(text))
+
+    @staticmethod
+    def narrators(isnad_text: str) -> list[_isnad.Hop]:
+        """Split one ISNAD segment into its narrators, in transmission order.
+
+        The model finds the chain; these rules divide it. Offsets on each hop
+        are relative to `isnad_text`, so `isnad_text[h.start:h.end]` is the
+        narrator's name exactly as written, and `[h.verb_start:h.verb_end]` the
+        verb that hands the report to him.
+
+        Not a method on the model, and no model runs here — it is a `Hop` list
+        for a span the caller already has.
+        """
+        return _isnad.narrator_hops(isnad_text)

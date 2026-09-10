@@ -25,6 +25,7 @@ const el = {
   fbName: $('fb-name'), fbEmail: $('fb-email'), fbMessage: $('fb-message'),
   fbWebsite: $('fb-website'), fbSend: $('fb-send'), fbStatus: $('fb-status'),
   fbHint: $('fb-hint'), fbForm: $('feedback-form'), fbOff: $('feedback-off'),
+  themeToggle: $('theme-toggle'),
 };
 
 let config = null;
@@ -209,7 +210,31 @@ async function sendFeedback() {
 
 /* --------------------------------------------------------------- wiring */
 
+// `static/theme.js` has already chosen the theme by the time this runs — it
+// has to, from <head>, or the page paints light and then flips. All that is
+// left here is the button: reflect the current state, and record a deliberate
+// choice so it outlives the session and stops tracking the OS setting.
+function wireTheme() {
+  const paint = () => {
+    const dark = document.documentElement.classList.contains('dark');
+    el.themeToggle.setAttribute('aria-pressed', String(dark));
+    el.themeToggle.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+  };
+  paint();
+  el.themeToggle.addEventListener('click', () => {
+    const dark = !document.documentElement.classList.contains('dark');
+    document.documentElement.classList.toggle('dark', dark);
+    try {
+      localStorage.setItem('theme', dark ? 'dark' : 'light');
+    } catch (e) {
+      // Private mode: the theme still applies, it just will not be remembered.
+    }
+    paint();
+  });
+}
+
 function wire() {
+  wireTheme();
   el.nav.addEventListener('click', (ev) => {
     const button = ev.target.closest('button[data-page]');
     if (button) showPage(button.dataset.page);
@@ -436,8 +461,18 @@ function unitText(data, unit) {
   if (data.tag_kind === 'pos') {
     return unit.pairs.map(([w, c]) => `${w}/${tagName('pos', c)}`).join(' ');
   }
-  return unit.pairs
-    .map(([c, chunk]) => `[${tagName('structure', c)}] ${chunk}`).join('\n');
+  // Same layout the server writes into .txt, Markdown and the PDF, so what a
+  // reader copies off the page is what they would have downloaded.
+  const heading = (config.narrator_words[lang] || {}).heading;
+  const lines = [];
+  unit.pairs.forEach(([c, chunk], i) => {
+    lines.push(`[${tagName('structure', c)}] ${chunk}`);
+    const chain = (unit.narrators || []).filter((h) => h.seg === i);
+    if (!chain.length) return;
+    lines.push(`    ${heading}:`);
+    for (const h of chain) lines.push(`      ${h.n}. ${h.verb} — ${h.name}`);
+  });
+  return lines.join('\n');
 }
 
 function drawTable(data) {
@@ -475,13 +510,35 @@ function pairsRow(unit) {
 
 function segments(unit) {
   const wrap = div('');
-  for (const [code, chunk] of unit.pairs) {
+  unit.pairs.forEach(([code, chunk], i) => {
     const row = div('seg');
     const name = span('lab lab-' + code.replace(/[^A-Z]/g, ''),
       tagName('structure', code));
     if (lang === 'ar') { name.dir = 'rtl'; name.lang = 'ar'; }
     name.title = code;
     row.append(name, span('txt', chunk));
+    wrap.append(row);
+    const chain = (unit.narrators || []).filter((h) => h.seg === i);
+    if (chain.length) wrap.append(narratorChain(chain));
+  });
+  return wrap;
+}
+
+/** The narrators of one isnād, numbered in transmission order.
+ *
+ * Directly under its own isnād rather than in a panel of its own, because the
+ * chain is a reading OF that segment: seeing where each name sits in the line
+ * above is most of the value. Verb and name are separate elements so the
+ * styling can hold them apart — حدثنا is how the report travelled, عبد الله بن
+ * يوسف is who it travelled through, and running them together is what makes an
+ * unfamiliar chain hard to read. */
+function narratorChain(chain) {
+  const wrap = div('chain');
+  for (const hop of chain) {
+    const row = div('hop');
+    row.append(span('hop-n', hop.n));
+    row.append(spanRtl('hop-verb', hop.verb));
+    row.append(spanRtl('hop-name', hop.name));
     wrap.append(row);
   }
   return wrap;

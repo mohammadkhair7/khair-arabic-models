@@ -22,7 +22,15 @@ milliseconds. Pass `--preload` to pay that cost at startup instead.
 | **Diacritize** | Every diacritic restored from the bare letters (grammar-aware v0.2). |
 | **Fill missing diacritics** | Existing marks kept verbatim; only fully bare words are vowelled, and Qurʾānic citations are never touched. |
 | **Part-of-speech tags** | Each word labelled with one of 24 tags. |
-| **Hadith structure** | Text split into hadith number, isnād, matn and heading. |
+| **Hadith structure** | Text split into hadith number, isnād, matn and heading, with each isnād broken into its narrators. |
+
+Under every isnād the page prints the chain of narrators in transmission
+order, the verb that carries the report (`حدثنا`, `أخبرني`, `عن`) set apart
+from the name that receives it. The chain is drawn from the isnād the model
+marked, not from a second reading of the text, so the two never disagree on
+screen; the names appear in the source's own spelling, diacritics and all.
+They travel into all four downloads, and into the CSV as their own columns,
+one row per narrator.
 
 Tag names are shown in **English or Arabic**, switchable on the result itself.
 The models emit codes (`noun_prop`, `MATN`); the language only chooses the
@@ -64,6 +72,13 @@ layered in the order an attacker meets them, in
 | Header injection via the feedback form | CR/LF stripped from the name and address. |
 | Abuse | Per-IP rate limits: 30 requests/minute for processing, 5/hour for feedback, plus a honeypot field. |
 | XSS | Strict CSP (`default-src 'none'`), no inline script or style, no third-party origins; the UI only ever writes `textContent`. |
+
+The CSP is why the light/dark theme lives in its own `static/theme.js` loaded
+render-blocking from `<head>` rather than in an inline script: it has to run
+before the first paint or the page flashes light and then turns dark, and
+inline script is not allowed. It follows the operating system until the reader
+touches the toggle, then remembers that choice in `localStorage["theme"]` —
+the same contract hadith.chat uses, so one decision serves both sites.
 
 Two structural choices matter more than any single check:
 

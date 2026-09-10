@@ -74,16 +74,33 @@ def as_csv(result: Result) -> bytes:
         # along in its own column so the sheet stays machine-readable no
         # matter which language the names were rendered in.
         left, right = labels.columns(task.tag_kind, result.lang)
-        writer.writerow(["line", left, right, "tag_code"])
+        head = ["line", left, right, "tag_code"]
+        # Structure gets three more columns and one row per narrator, the
+        # segment repeated beside each. It keeps the sheet rectangular — a
+        # second block with its own header would not sort or pivot — and it
+        # makes the chain the thing you can filter on, which is the whole
+        # reason for exporting it.
+        narrators = task.tag_kind == "structure"
+        words = labels.narrator_words(result.lang)
+        if narrators:
+            head += [words["n"], words["verb"], words["name"]]
+        writer.writerow(head)
         for unit in result.units:
-            for a, b in unit.pairs:
+            for i, (a, b) in enumerate(unit.pairs):
                 # POS pairs read (word, tag); structure pairs read (label,
                 # chunk). Either way the code is the one that is a known tag.
                 word, code = (b, a) if task.tag_kind == "structure" else (a, b)
-                writer.writerow([unit.n, csv_safe(word),
-                                 csv_safe(labels.name(task.tag_kind, code,
-                                                      result.lang)),
-                                 csv_safe(code)])
+                row = [unit.n, csv_safe(word),
+                       csv_safe(labels.name(task.tag_kind, code, result.lang)),
+                       csv_safe(code)]
+                if not narrators:
+                    writer.writerow(row)
+                    continue
+                chain = [h for h in unit.narrators if h.seg == i]
+                if not chain:
+                    writer.writerow(row + ["", "", ""])
+                for h in chain:
+                    writer.writerow(row + [h.n, csv_safe(h.verb), csv_safe(h.name)])
     else:
         writer.writerow(["line", "input", "output"])
         for unit in result.units:

@@ -8,7 +8,7 @@ a single manually labeled example. See `docs/PAPER.md`.
     >>> Diacritizer.load().diacritize("قال رسول الله")
 """
 from .api import Diacritizer, PosTagger, StructureTagger
-from .isnad import IsnadParse, parse_isnad
+from .isnad import Hop, IsnadParse, narrator_hops, parse_isnad
 from .normalize import has_tashkeel, normalize_arabic, strip_diacritics
 from .tashkeel import apply_marks, split_marks
 from .tokenization import Token, whitespace_tokenize
@@ -30,6 +30,8 @@ __all__ = [
     "Token",
     # rule-based labeler
     "parse_isnad",
+    "narrator_hops",
     "IsnadParse",
+    "Hop",
     "__version__",
 ]

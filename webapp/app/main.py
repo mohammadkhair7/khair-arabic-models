@@ -173,6 +173,9 @@ async def config() -> dict:
             {"key": "ar", "label": "العربية"},
         ],
         "tag_sets": {kind: labels.glossary(kind) for kind in labels.SETS},
+        # Both languages, for the same reason as the tag sets: the page has to
+        # be able to re-word a finished chain without asking the server again.
+        "narrator_words": labels.NARRATORS,
         "limits": {
             "max_upload_mb": settings.max_upload_bytes // (1024 * 1024),
             "max_text_chars": settings.max_text_chars,
@@ -282,7 +285,11 @@ async def run(
             {"n": u.n, "source": u.source, "output": u.output,
              # Codes, not names: the page holds the glossary and renders the
              # names itself, so the language toggle costs no round trip.
-             "pairs": [list(p) for p in u.pairs]}
+             "pairs": [list(p) for p in u.pairs],
+             # Verb and name are spans of the source, so they arrive spelled
+             # the way the author spelled them and need no glossary.
+             "narrators": [{"seg": h.seg, "n": h.n, "verb": h.verb, "name": h.name}
+                           for h in u.narrators]}
             for u in shown
         ],
     }

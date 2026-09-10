@@ -140,6 +140,33 @@ process word by word, and `spans()` when you need to highlight the original
 text without altering it — the offsets point straight into the string you
 passed in.
 
+#### Splitting a chain into its narrators
+
+The model finds the isnād; a set of rules divides it. Hand the ISNAD segment
+straight back:
+
+```python
+chain = next(text for label, text in s.segments(unit) if label == "ISNAD")
+
+for i, hop in enumerate(s.narrators(chain), start=1):
+    print(i, chain[hop.verb_start:hop.verb_end], "-", chain[hop.start:hop.end])
+# 1 حدثنا - محمد بن بشار
+# 2 حدثنا - يحيى
+# 3 عن - عبيد الله
+# 4 حدثني - نافع
+# 5 عن - ابن عمر
+```
+
+Read the names off the offsets, not off `hop.mention`. `mention` is folded for
+matching, so a vowelled edition comes back as `عاءشه` where the source has
+`عَائِشَة`; `chain[hop.start:hop.end]` is the source's own spelling, marks and
+all. Honorifics (`رضي الله عنها`, `صلى الله عليه وسلم`) are titles rather than
+names and are left outside the span.
+
+Passing the model's own ISNAD segment matters: `parse_isnad` would re-derive
+where the chain ends and can land somewhere else, which on a page that draws
+both readings shows up as a narrator highlighted outside the isnād beside it.
+
 The four labels are `HNUM` (the printed number), `ISNAD` (the chain of
 transmission), `MATN` (the report itself) and `HEADING` (a section title).
 
@@ -607,10 +634,12 @@ so the model loads only once. Memory: about 20 MB for v0.1, 31 MB for v0.2.
 | `.tags` | the 24 possible tags |
 | `StructureTagger.load(device=None, path=None)` | a segmenter |
 | `.tag(text)` / `.segments(text)` / `.spans(text)` | per word / grouped / offsets |
+| `.narrators(isnad_text)` | the narrators of one chain, as `Hop`s |
 | `normalize_arabic(text)` | spelling variants folded |
 | `strip_diacritics(text)` | marks and taṭwīl off, letters untouched |
 | `split_marks(text)` / `apply_marks(text, labels)` | marks off / marks back on |
 | `parse_isnad(text)` | the rule-based chain parse |
+| `narrator_hops(chain)` | narrators of a span already known to be a chain |
 
 ---
 

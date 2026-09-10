@@ -66,6 +66,32 @@ def test_index_page_is_served(client):
     assert "github.com/qurancomp/khair-arabic-models" in response.text
 
 
+def test_the_theme_is_applied_before_the_first_paint(client):
+    """A render-blocking <script> in <head>, or the page flashes light.
+
+    The CSP forbids inline script, so this has to be a served file; both
+    halves are asserted because either one alone silently breaks the theme.
+    """
+    head = client.get("/").text.split("</head>")[0]
+    # Written out in full: no attributes is the assertion. `defer` or `async`
+    # would move it past the first paint and reintroduce the flash.
+    assert '<script src="/static/theme.js"></script>' in head
+
+    body = client.get("/static/theme.js").text
+    assert client.get("/static/theme.js").status_code == 200
+    # The contract it shares with hadith.chat, so one choice serves both.
+    assert 'classList.toggle("dark"' in body
+    assert 'localStorage.getItem("theme")' in body
+    assert "prefers-color-scheme: dark" in body
+
+
+def test_the_favicon_is_served(client):
+    assert '/static/img/qurancomputing.ico' in client.get("/").text
+    response = client.get("/static/img/qurancomputing.ico")
+    assert response.status_code == 200
+    assert response.content[:4] == b"\x00\x00\x01\x00"      # a real ICO
+
+
 # ------------------------------------------------------------- input types
 
 @needs_models
@@ -143,6 +169,32 @@ def test_structure_returns_labelled_segments(client):
     labels = {label for label, _ in body["units"][0]["pairs"]}
     assert labels <= {"HNUM", "ISNAD", "MATN", "HEADING"}
     assert "ISNAD" in labels
+
+
+@needs_models
+def test_structure_returns_the_narrators_of_each_chain(client):
+    """A vowelled edition, which is the ordinary input, not an edge case."""
+    unit = ("حَدَّثَنَا عَبْدُ اللَّهِ بْنُ يُوسُفَ قَالَ أَخْبَرَنَا مَالِكٌ عَنْ "
+            "نَافِعٍ عَنِ ابْنِ عُمَرَ أَنَّ رَسُولَ اللَّهِ صَلَّى اللَّهُ عَلَيْهِ "
+            "وَسَلَّمَ قَالَ : مَنْ جَرَّ ثَوْبَهُ خُيَلاَءَ")
+    unit_json = client.post("/api/process", data={
+        "task": "structure", "text": unit}).json()["units"][0]
+
+    chain = unit_json["narrators"]
+    assert [h["n"] for h in chain] == list(range(1, len(chain) + 1))
+    assert "عَبْدُ اللَّهِ بْنُ يُوسُفَ" in [h["name"] for h in chain]
+    # Verb and name arrive spelled as the source spelled them, marks and all,
+    # and each sits inside the ISNAD segment the same response describes.
+    isnad = next(c for label, c in unit_json["pairs"] if label == "ISNAD")
+    assert all(h["name"] in isnad and h["verb"] in isnad for h in chain)
+    assert any("\u0651" in h["name"] for h in chain)
+
+
+def test_config_carries_the_narrator_wording_in_both_languages(client):
+    words = client.get("/api/config").json()["narrator_words"]
+    assert set(words) == {"en", "ar"}
+    assert words["ar"]["heading"] == "رواة الإسناد"
+    assert set(words["en"]) == set(words["ar"])
 
 
 @needs_models

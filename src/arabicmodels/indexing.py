@@ -229,14 +229,24 @@ def evaluate(args) -> None:
 
 @torch.no_grad()
 def tag_words(model, cvocab, tvocab, dev, words: list[str]) -> list[str]:
-    """Label a single sequence of words (truncated to MAX_WORDS)."""
+    """Label a sequence of words, one tag per word.
+
+    Sequences longer than MAX_WORDS are processed in consecutive blocks, the
+    same way `page_spans` handles a page. They used to be truncated and the
+    remainder filled with "?", which downstream code cannot tell apart from a
+    real prediction. Blocks are cut without overlap, so a word next to a cut
+    is decided on less context than one in the middle — `docs/PAPER.md` §10.2.
+    """
     if not words:
         return []
     itos = tvocab.itos()
-    x = pad_words([encode_words(_encoder_words(words[:MAX_WORDS]), cvocab)]).to(dev)
-    pred = model(x).argmax(-1)[0][:len(words)].tolist()
-    tags = [itos.get(t, "?") for t in pred]
-    return tags + ["?"] * (len(words) - len(tags))
+    tags: list[str] = []
+    for i in range(0, len(words), MAX_WORDS):
+        chunk = words[i:i + MAX_WORDS]
+        x = pad_words([encode_words(_encoder_words(chunk), cvocab)]).to(dev)
+        pred = model(x).argmax(-1)[0][:len(chunk)].tolist()
+        tags.extend(itos.get(t, "?") for t in pred)
+    return tags
 
 
 @torch.no_grad()

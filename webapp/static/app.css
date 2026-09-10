@@ -3,6 +3,8 @@
    under a Content-Security-Policy that allows nothing but 'self'. */
 
 :root {
+  color-scheme: light;
+
   /* institute palette, shared with hadith.chat */
   --teal: #0D7377;
   --gold: #D4AF37;
@@ -21,9 +23,66 @@
   --danger: #b3261e;
   --danger-soft: #fdf1f0;
   --ok-soft: #e8f6ee;
+  --ok-ink: #14663d;
   --radius: 12px;
   --arabic: "Segoe UI", "Noto Naskh Arabic", "Traditional Arabic", "Amiri",
             "Scheherazade New", Tahoma, serif;
+
+  /* Surfaces that used to be a literal #fff. Named so that dark mode is an
+     override of this block rather than a second copy of the whole sheet. */
+  --surface: #ffffff;          /* inputs, pill buttons, download chips */
+  --code-bg: #eef1f5;
+  --th-bg: #f2f4f7;
+  --disabled: #9aa5b1;
+  --heading-ink: var(--deep-teal);   /* the hero title */
+
+  /* Structure-label chips. Each is a pair, because dark mode needs to move
+     the ink as well as the ground to stay legible. */
+  --lab-hnum-bg: #e5e9f5;      --lab-hnum-ink: #14213D;
+  --lab-isnad-bg: #fdf0d5;     --lab-isnad-ink: #8a6410;
+  --lab-matn-bg: var(--teal-soft); --lab-matn-ink: var(--teal-dark);
+  --lab-head-bg: #ffeeda;      --lab-head-ink: #96541a;
+}
+
+/* ---------- dark theme ----------
+   Same contract as hadith.chat, so the two sites behave identically: a `dark`
+   class on <html>, remembered in localStorage under "theme", defaulting to the
+   operating system's preference. `static/theme.js` applies it from <head>
+   before the first paint â€” it is a separate file rather than an inline script
+   because the CSP allows script-src 'self' and nothing inline.
+
+   Only the variables move. Anything already dark in the light theme (the
+   masthead, the footer, white text on a teal button) is correct in both. */
+html.dark {
+  color-scheme: dark;
+
+  --light: #11141d;            /* page ground */
+  --card: #181c27;
+  --surface: #1e2331;
+  --ink: #e7eaf1;
+  --muted: #98a1b3;
+  --line: #2b3143;
+  --code-bg: #202636;
+  --th-bg: #1c2130;
+  --disabled: #3a4150;
+
+  /* The teals are lifted: #0D7377 on a near-black ground is too low-contrast
+     to read, and --teal-dark is used for accent TEXT as often as for a hover
+     ground, so on dark it has to become the lighter of the two. */
+  --teal: #17999e;
+  --teal-dark: #56cfd2;
+  --teal-soft: #12303a;
+
+  --danger: #ff8a80;
+  --danger-soft: #341d1d;
+  --ok-soft: #14301f;
+  --ok-ink: #7fd6a0;
+  --heading-ink: #e7eaf1;
+
+  --lab-hnum-bg: #232a42;      --lab-hnum-ink: #b9c6ef;
+  --lab-isnad-bg: #3a2f13;     --lab-isnad-ink: #e8c877;
+  --lab-matn-bg: #12303a;      --lab-matn-ink: #6fd8db;
+  --lab-head-bg: #3a2716;      --lab-head-ink: #eab183;
 }
 
 * { box-sizing: border-box; }
@@ -41,20 +100,48 @@ body {
 
 .masthead { background: var(--dark); color: #fff; border-bottom: 3px solid var(--gold); }
 
+/* Three columns, not a flex row with a spacer: the brand sits in the middle
+   column and is therefore centred on the BANNER, not on whatever space the
+   donate button happens to leave. The two side columns are equal, so the
+   centre holds as the button changes width between languages. */
 .masthead-inner {
-  display: flex; align-items: center; gap: 1rem;
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center; gap: 1rem;
   padding: 0.7rem 1rem; max-width: 940px; margin: 0 auto;
 }
 
-.brand { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: inherit; min-width: 0; }
+.brand {
+  grid-column: 2; justify-self: center;
+  display: flex; align-items: center; gap: 0.75rem;
+  text-decoration: none; color: inherit; min-width: 0;
+}
 .brand-logo { height: 46px; width: auto; flex: none; }
+.brand-names { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-width: 0; }
 .brand-name { height: 30px; width: auto; max-width: 15rem; object-fit: contain; }
+/* The Arabic name is an image, so the English line under it is set in type
+   small enough to read as a subtitle rather than compete with it. */
+.brand-name-en {
+  font-size: 0.6rem; line-height: 1.3; letter-spacing: 0.02em;
+  text-align: center; opacity: 0.82; max-width: 17rem;
+}
 .brand-text { display: none; }
 
-.masthead-spacer { flex: 1; }
+.theme-toggle {
+  grid-column: 1; justify-self: start;
+  background: none; color: inherit; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.35); border-radius: 999px;
+  width: 2.1rem; height: 2.1rem; display: grid; place-items: center; padding: 0;
+}
+.theme-toggle:hover { border-color: var(--gold); }
+.theme-toggle .theme-icon { font-size: 1rem; line-height: 1; }
+/* Moon while light (what clicking gives you), sun while dark. */
+.theme-toggle .theme-icon::before { content: "\1F319"; }
+html.dark .theme-toggle .theme-icon::before { content: "\2600"; }
+
+.donate { grid-column: 3; justify-self: end; }
 
 /* donate menu, mirroring hadith.chat's two Stripe payment links */
-.donate { position: relative; flex: none; }
+.donate { position: relative; }
 .donate-btn {
   background: var(--gold); color: var(--dark);
   border: 0; border-radius: 8px; cursor: pointer;
@@ -83,7 +170,7 @@ body {
 /* ---------- hero ---------- */
 
 .hero { text-align: center; padding: 2.1rem 1rem 1.4rem; }
-.hero h1 { margin: 0; font-size: 2rem; letter-spacing: -0.02em; color: var(--deep-teal); }
+.hero h1 { margin: 0; font-size: 2rem; letter-spacing: -0.02em; color: var(--heading-ink); }
 .hero-ar { margin: 0.15rem 0 0; font-family: var(--arabic); font-size: 1.45rem; color: var(--teal); }
 .tagline { margin: 0.8rem auto 0; max-width: 46rem; color: var(--muted); }
 
@@ -91,7 +178,7 @@ body {
 
 .nav { display: flex; gap: 0.3rem; justify-content: center; flex-wrap: wrap; padding-bottom: 1.2rem; }
 .nav button {
-  border: 1px solid var(--line); background: #fff; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); cursor: pointer;
   font: inherit; font-size: 0.92rem; color: var(--muted);
   padding: 0.45rem 1.1rem; border-radius: 999px;
   display: flex; gap: 0.45rem; align-items: baseline;
@@ -157,7 +244,7 @@ body {
 
 textarea, input[type="text"], input[type="email"] {
   width: 100%; border: 1px solid var(--line); border-radius: 9px;
-  padding: 0.75rem 0.85rem; font: inherit; background: #fff; color: var(--ink);
+  padding: 0.75rem 0.85rem; font: inherit; background: var(--surface); color: var(--ink);
 }
 textarea { font-family: var(--arabic); font-size: 1.15rem; line-height: 2; resize: vertical; }
 textarea.plain { font-family: inherit; font-size: 1rem; line-height: 1.6; }
@@ -168,7 +255,7 @@ textarea:focus, input:focus { outline: 2px solid var(--teal); outline-offset: 1p
 .field label { display: block; font-size: 0.9rem; margin-bottom: 0.35rem; font-weight: 500; }
 .field-row { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
 
-code { background: #eef1f5; padding: 0 0.3em; border-radius: 4px; font-size: 0.9em; }
+code { background: var(--code-bg); padding: 0 0.3em; border-radius: 4px; font-size: 0.9em; }
 
 .drop {
   display: grid; gap: 0.35rem; place-items: center; text-align: center;
@@ -194,12 +281,12 @@ code { background: #eef1f5; padding: 0 0.3em; border-radius: 4px; font-size: 0.9
   padding: 0.7rem 2.2rem; display: flex; gap: 0.6rem; align-items: baseline;
 }
 .run:hover { background: var(--teal-dark); }
-.run:disabled { background: #9aa5b1; cursor: progress; }
+.run:disabled { background: var(--disabled); cursor: progress; }
 .run .ar { color: #cfe7e7; margin: 0; }
 
 .status { margin: 0; color: var(--muted); font-size: 0.92rem; }
 .status.is-error { color: var(--danger); background: var(--danger-soft); padding: 0.5rem 0.75rem; border-radius: 8px; }
-.status.is-ok { color: #14663d; background: var(--ok-soft); padding: 0.5rem 0.75rem; border-radius: 8px; }
+.status.is-ok { color: var(--ok-ink); background: var(--ok-soft); padding: 0.5rem 0.75rem; border-radius: 8px; }
 .status.is-busy::after { content: "\2026"; }
 
 /* ---------- results ---------- */
@@ -222,7 +309,7 @@ code { background: #eef1f5; padding: 0 0.3em; border-radius: 4px; font-size: 0.9
 /* English / Arabic switch for the POS and structure tag names. */
 .langs #lang-buttons { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
 .lang {
-  border: 0; background: #fff; font: inherit; font-size: 0.86rem;
+  border: 0; background: var(--surface); font: inherit; font-size: 0.86rem;
   padding: 0.35rem 0.75rem; color: var(--muted); cursor: pointer;
 }
 .lang + .lang { border-inline-start: 1px solid var(--line); }
@@ -230,7 +317,7 @@ code { background: #eef1f5; padding: 0 0.3em; border-radius: 4px; font-size: 0.9
 .lang.is-active { background: var(--teal); color: #fff; }
 
 .dl, .ghost {
-  border: 1px solid var(--line); border-radius: 7px; background: #fff;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--surface);
   padding: 0.35rem 0.8rem; font: inherit; font-size: 0.86rem;
   color: var(--ink); text-decoration: none; cursor: pointer;
 }
@@ -263,14 +350,42 @@ code { background: #eef1f5; padding: 0 0.3em; border-radius: 4px; font-size: 0.9
   flex: none; line-height: 1.7;
 }
 .seg .txt { flex: 1; }
-.lab-HNUM    { background: #e5e9f5; color: var(--deep-teal); }
-.lab-ISNAD   { background: #fdf0d5; color: #8a6410; }
-.lab-MATN    { background: var(--teal-soft); color: var(--teal-dark); }
-.lab-HEADING { background: #ffeeda; color: #96541a; }
+.lab-HNUM    { background: var(--lab-hnum-bg);  color: var(--lab-hnum-ink); }
+.lab-ISNAD   { background: var(--lab-isnad-bg); color: var(--lab-isnad-ink); }
+.lab-MATN    { background: var(--lab-matn-bg);  color: var(--lab-matn-ink); }
+.lab-HEADING { background: var(--lab-head-bg);  color: var(--lab-head-ink); }
+
+/* The narrator chain, under the isnād it belongs to. Indented on the start
+   side and hung off a rule so it reads as a breakdown of the line above
+   rather than as another segment. */
+.chain {
+  margin: 0.1rem 0 0.7rem 0; padding-inline-start: 0.7rem;
+  margin-inline-start: 3.4rem;
+  border-inline-start: 2px solid var(--lab-isnad-bg);
+}
+.hop { display: flex; gap: 0.5rem; align-items: baseline; line-height: 1.9; }
+.hop-n {
+  font-family: system-ui, sans-serif; font-size: 0.66rem; color: var(--muted);
+  min-width: 1.1rem; text-align: end; flex: none;
+}
+/* Verb and name carry the two things a reader is separating: how the report
+   travelled and who it travelled through. The verb is set in the isnād's own
+   colour on a tinted chip, the name in ordinary body ink — so the chain scans
+   as names with connectives between them, not as one undifferentiated run. */
+.hop-verb {
+  font-family: var(--arabic); font-size: 0.95rem; flex: none;
+  color: var(--lab-isnad-ink); background: var(--lab-isnad-bg);
+  border-radius: 4px; padding: 0 0.35rem;
+}
+.hop-name { font-family: var(--arabic); font-weight: 600; color: var(--ink); }
+
+@media (max-width: 640px) {
+  .chain { margin-inline-start: 0.8rem; }
+}
 
 .grid { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 .grid th, .grid td { border: 1px solid var(--line); padding: 0.35rem 0.55rem; text-align: start; vertical-align: top; }
-.grid th { background: #f2f4f7; font-size: 0.8rem; color: var(--muted); font-family: system-ui, sans-serif; }
+.grid th { background: var(--th-bg); font-size: 0.8rem; color: var(--muted); font-family: system-ui, sans-serif; }
 .grid td.out { background: var(--teal-soft); }
 
 /* ---------- donate / feedback / about pages ---------- */
@@ -317,7 +432,12 @@ code { background: #eef1f5; padding: 0 0.3em; border-radius: 4px; font-size: 0.9
 .site-footer .footer-logo { height: 34px; opacity: .9; margin-bottom: 0.4rem; }
 
 @media (max-width: 640px) {
-  .brand-name { display: none; }
+  /* The institute name goes, both scripts together — the English line is a
+     subtitle to the Arabic image, so keeping one without the other reads as a
+     mistake. The logo alone carries the brand at this width, which is what
+     the banner already did before the English line existed. */
+  .brand-name, .brand-name-en { display: none; }
+  .masthead-inner { gap: 0.5rem; padding: 0.6rem 0.7rem; }
   .field-row { grid-template-columns: 1fr; }
   .hero h1 { font-size: 1.6rem; }
 }
