@@ -32,7 +32,8 @@ screen; the names appear in the source's own spelling, diacritics and all.
 They travel into all four downloads, and into the CSV as their own columns,
 one row per narrator.
 
-Tag names are shown in **English or Arabic**, switchable on the result itself.
+Tag names are shown in **Arabic by default, or English**, switchable on the
+result itself.
 The models emit codes (`noun_prop`, `MATN`); the language only chooses the
 dictionary those codes are read through, so switching redraws the page without
 running anything again, and `?lang=ar` re-renders a download the same way.
@@ -76,9 +77,10 @@ layered in the order an attacker meets them, in
 The CSP is why the light/dark theme lives in its own `static/theme.js` loaded
 render-blocking from `<head>` rather than in an inline script: it has to run
 before the first paint or the page flashes light and then turns dark, and
-inline script is not allowed. It follows the operating system until the reader
-touches the toggle, then remembers that choice in `localStorage["theme"]` —
-the same contract hadith.chat uses, so one decision serves both sites.
+inline script is not allowed. **Dark is the default** — a first visit is dark
+whatever the operating system is set to — and the toggle records the reader's
+own choice in `localStorage["theme"]`, the same key hadith.chat uses, so one
+decision serves both sites.
 
 Two structural choices matter more than any single check:
 

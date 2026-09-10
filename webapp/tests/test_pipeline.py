@@ -81,10 +81,15 @@ def test_the_theme_is_applied_before_the_first_paint(client):
 
     body = client.get("/static/theme.js").text
     assert client.get("/static/theme.js").status_code == 200
-    # The contract it shares with hadith.chat, so one choice serves both.
+    # The storage contract it shares with hadith.chat, so one choice serves
+    # both sites.
     assert 'classList.toggle("dark"' in body
     assert 'localStorage.getItem("theme")' in body
-    assert "prefers-color-scheme: dark" in body
+    # Dark unless the reader stored "light" — a first visit is dark whatever
+    # the operating system is set to, which is why nothing here reads
+    # prefers-color-scheme.
+    assert 'stored !== "light"' in body
+    assert "prefers-color-scheme" not in body
 
 
 def test_the_favicon_is_served(client):
@@ -256,10 +261,19 @@ def test_config_advertises_both_label_languages(client):
 
 
 @needs_models
-def test_unknown_label_language_falls_back_to_english(client):
+def test_unknown_label_language_falls_back_to_the_default(client):
+    """Arabic — the text is Arabic and so is the reader it is defaulting for."""
     body = client.post("/api/process", data={
         "task": "tashkeel", "text": "قال", "lang": "fr"}).json()
-    assert body["lang"] == "en"
+    assert body["lang"] == "ar"
+
+
+@needs_models
+def test_tags_are_named_in_arabic_when_nothing_is_asked_for(client):
+    body = client.post("/api/process", data={
+        "task": "pos", "text": "حدثنا قتيبة بن سعيد"}).json()
+    assert body["lang"] == "ar"
+    assert "/اسم" in body["units"][0]["output"]
 
 
 @needs_models
@@ -314,7 +328,9 @@ def test_csv_export_of_pos_is_token_level(client):
         "task": "pos", "text": "حدثنا قتيبة بن سعيد"}).json()["token"]
     body = client.get(f"/api/download/{token}/csv").content.decode("utf-8-sig")
     rows = list(csv.reader(io.StringIO(body)))
-    assert rows[0] == ["line", "word", "tag", "tag_code"]
+    # Arabic headings, because no language was asked for and Arabic is the
+    # default; `tag_code` stays English so the sheet stays machine-readable.
+    assert rows[0] == ["line", "الكلمة", "الوسم", "tag_code"]
     assert len(rows) == 5
 
 

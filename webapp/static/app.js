@@ -35,7 +35,9 @@ let last = null;
 // Language the POS and structure tag names are shown in. The models emit
 // codes; this only picks which dictionary those codes are read through, so
 // changing it redraws the result without asking the server to run again.
-let lang = 'en';
+// Must match labels.DEFAULT_LANGUAGE, or the first result would arrive from
+// the server worded one way and the language buttons would claim the other.
+let lang = 'ar';
 
 init();
 

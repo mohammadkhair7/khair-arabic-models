@@ -12,7 +12,11 @@ language the reader chose.
 from __future__ import annotations
 
 LANGUAGES = ("en", "ar")
-DEFAULT_LANGUAGE = "en"
+# Arabic by default. The text is Arabic and so are most of the people reading
+# it, and «اسم علم» is the term a reader of classical Arabic already has for
+# what the model found; "proper noun" is the translation. English stays one
+# click away on the result itself and costs no reprocessing.
+DEFAULT_LANGUAGE = "ar"
 
 # The 24 tags of the POS student, which follows the CAMeL Tools tag set.
 POS: dict[str, tuple[str, str]] = {
