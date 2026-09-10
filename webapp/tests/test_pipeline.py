@@ -61,7 +61,9 @@ def test_health(client):
 def test_index_page_is_served(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert "alarabia.chat" in response.text
+    # The brand as it is written, not just the hostname: the two differ in
+    # case and the page is where the branded spelling has to hold.
+    assert "<h1>AlArabia.chat</h1>" in response.text
     # The open-source link the About tab promises.
     assert "github.com/qurancomp/khair-arabic-models" in response.text
 

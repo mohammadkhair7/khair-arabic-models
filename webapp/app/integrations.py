@@ -161,7 +161,7 @@ def send_feedback(name: str, email: str, message: str) -> None:
 
     payload = {
         "personalizations": [{"to": [{"email": CONTACT_EMAIL}]}],
-        "from": {"email": SENDGRID_FROM_EMAIL, "name": "alarabia.chat"},
+        "from": {"email": SENDGRID_FROM_EMAIL, "name": "AlArabia.chat"},
         "subject": f"[{SITE_DOMAIN} feedback] {name}"[:200],
         "content": [{"type": "text/plain",
                      "value": f"From: {name} <{email}>\n\n{message}"[:20000]}],
